@@ -10,7 +10,7 @@ import {
   updateSubCourse,
   deleteSubCourse,
   searchSubCourse,
-} from "../../apis/SubCourseApi";
+} from "../../apis/SubcourseApi";
 import { jwtDecode } from "jwt-decode";
 import toast, { Toaster } from "react-hot-toast";
 

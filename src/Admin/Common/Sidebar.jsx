@@ -18,6 +18,8 @@ const navItems = [
       { label: 'Profile', path: '/settings/profile' },
       { label: 'Reviews', path: '/settings/reviews' },
       { label: 'Help Center', path: '/settings/helpcenter' },
+    
+
     ]
   },
 ];

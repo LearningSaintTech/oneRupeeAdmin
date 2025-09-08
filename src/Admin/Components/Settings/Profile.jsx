@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { FaSearch, FaBell, FaCamera } from "react-icons/fa";
 import profilePic from "../../../assets/images/Profile Picture (1).svg";
 import learningSaint from "../../../assets/images/learning-saint.svg";
-import ellipse from "../../../assets/images/ellipse.svg";
+import ellipse from "../../../assets/images/Ellipse.svg";
 import threeDgirl from "../../../assets/images/3dgirl.svg";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";

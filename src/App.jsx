@@ -13,14 +13,15 @@ import User from './Admin/Components/Users/User';
 import Courses from './Admin/Components/Courses/Courses';
 import Promo from './Admin/Components/Promo/promo';
 import Notification from './Admin/Components/Notifications/Notification';
-import Revenue from './Admin/Components/Revenue/revenue';
-import SubCourse from './Admin/Components/Courses/SubCourse';
+// import Revenue from './Admin/Components/Revenue/revenue';
+import SubCourse from './Admin/Components/Courses/Subcourse';
 import Lesson from './Admin/Components/Courses/Lesson';
 
 // Settings pages
 import Profile from './Admin/Components/Settings/Profile';
 import Review from './Admin/Components/Settings/Review';
-import HelpCenter from './Admin/Components/Settings/HelpCenter';
+import HelpCenter from './Admin/Components/Settings/Helpcenter';
+import Delete from "./Admin/Components/Policy/Delete";
 
 function App() {
   console.log(`🚀 [App] App component initialized, Timestamp: ${new Date().toISOString()}`);
@@ -32,6 +33,7 @@ function App() {
           {/* Public routes without sidebar */}
           <Route path="/" element={<Login />} />
           <Route path="otp" element={<Otp />} />
+          <Route path="/delete" element={<Delete/>}/>
 
           {/* Protected routes with sidebar */}
           <Route element={<Layout />}>
@@ -40,7 +42,7 @@ function App() {
             <Route path="courses" element={<Courses />} />
             <Route path="promo" element={<Promo />} />
             <Route path="notifications" element={<Notification />} />
-            <Route path="revenue" element={<Revenue />} />
+            {/* <Route path="revenue" element={<Revenue />} /> */}
             <Route path="subcourse/:id" element={<SubCourse />} />
             <Route path="lesson" element={<Lesson />} />
 
@@ -48,6 +50,8 @@ function App() {
             <Route path="settings/profile" element={<Profile />} />
             <Route path="settings/reviews" element={<Review />} />
             <Route path="settings/helpcenter" element={<HelpCenter />} />
+          
+
           </Route>
         </Routes>
       </BrowserRouter>

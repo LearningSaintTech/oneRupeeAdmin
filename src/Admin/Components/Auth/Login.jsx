@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Logins from "../../../assets/images/Login.svg";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginApi } from "../../apis/loginApi";
+import { loginApi } from "../../apis/LoginApi";
 import { setError, setLoading } from "../../redux/GlobalSlice";
 
 const Login = () => {

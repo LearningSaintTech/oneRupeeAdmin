@@ -4,7 +4,7 @@ import Lock from '../../../assets/images/Lock .svg';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setToken, setFcmToken, setDeviceId } from '../../redux/GlobalSlice';
-import { verifyOtpApi } from '../../apis/loginApi';
+import { verifyOtpApi } from '../../apis/LoginApi';
 import { saveFcmTokenApi } from '../../apis/NotificationApi';
 import { SocketContext } from '../../socket/SocketContext';
 import { requestForToken, getDeviceId } from '../../Services/firebase';

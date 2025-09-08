@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectToken, selectGlobalData } from "../../redux/Appstore";
 import { fetchAllCourses, addCourse, updateCourse, deleteCourse, searchCourses } from "../../apis/CourseApi";
-import profilePic from "../../../assets/images/Profile Picture (1).svg";
+import profile from "../../../assets/images/Profile Picture (1).svg";
 import toast, { Toaster } from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import { selectProfile } from "../../redux/GlobalSlice";
