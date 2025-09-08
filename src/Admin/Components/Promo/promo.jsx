@@ -8,6 +8,8 @@ import { getPromos, uploadPromo, deletePromo } from "../../apis/PromoApi";
 import { useSelector } from "react-redux";
 import { selectToken } from "../../redux/Appstore";
 import { selectProfile } from "../../redux/GlobalSlice";
+import { useNavigate } from "react-router-dom"; // ✅ Add this import
+
 
 
 const Promo = () => {
@@ -19,6 +21,7 @@ const Promo = () => {
   const [promoToDelete, setPromoToDelete] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null); // ✅ State for date picker
   const [currentDateTime, setCurrentDateTime] = useState(new Date()); // ✅ State for dynamic date and time
+const navigate = useNavigate(); // ✅ initialize
 
   const token = useSelector(selectToken);
     const profile = useSelector(selectProfile);
@@ -123,7 +126,13 @@ const Promo = () => {
             })}
           </span>
          
-          <FaBell className="text-gray-500 text-lg cursor-pointer" />
+          {/* <FaBell className="text-gray-500 text-lg cursor-pointer" /> */}
+
+          <FaBell 
+  className="w-6 h-6 text-gray-500 cursor-pointer" 
+  onClick={() => navigate("/notifications")} 
+/>
+
           <div className="w-10 h-10 rounded-full bg-gray-300 overflow-hidden">
             <img               src={profile?.profileImageUrl || profile}
             

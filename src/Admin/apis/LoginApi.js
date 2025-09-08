@@ -11,10 +11,18 @@ export const loginApi = async (mobileNumber) => {
 };
 
 // VERIFY OTP API (to get token after OTP verification, if backend supports it)
-export const verifyOtpApi = async (mobileNumber, otp) => {
+export const verifyOtpApi = async (mobileNumber, otp, fcmToken = null, deviceId = null) => {
+  const requestBody = { mobileNumber, otp };
+  
+  // Add FCM token and device ID if available
+  if (fcmToken && deviceId) {
+    requestBody.fcmToken = fcmToken;
+    requestBody.deviceId = deviceId;
+  }
+  
   return requestJson(
     "POST",
     "/api/admin/auth/verify-otp",
-    { mobileNumber, otp }
+    requestBody
   );
 };

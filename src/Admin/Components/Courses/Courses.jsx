@@ -106,27 +106,36 @@ const Courses = () => {
       clearTimeout(delayDebounce);
     };
   }, [searchQuery, token]);
+const openModal = (course = null) => {
+  console.log("🌐 Opening modal, course:", course);
+  if (course) {
+    setCourseName(course.courseName || "");
+    setInternshipPrice(
+      course.CourseInternshipPrice !== undefined && course.CourseInternshipPrice !== null
+        ? `Rs ${course.CourseInternshipPrice}/-`
+        : "Rs /-"
+    );
+    setCertificateDescription(
+      course.certificateDescription ||
+      "In this course you will learn how to build a space to a 3-dimensional product..."
+    );
+    setCoverImage(course.CoverImageUrl || null);
+    setSelectedCourseId(course._id);
+    console.log("🔧 Editing course, selectedCourseId:", course._id);
+  } else {
+    setCourseName("");
+    setInternshipPrice("Rs 99/-");
+    setCertificateDescription(
+      "In this course you will learn how to build a space to a 3-dimensional product..."
+    );
+    setCoverImage(null);
+    setSelectedCourseId(null);
+    console.log("➕ Adding new course, selectedCourseId cleared...");
+  }
+  setIsModalOpen(true);
+  setError(null);
+};
 
-  const openModal = (course = null) => {
-    console.log("🌐 Opening modal, course:", course);
-    if (course) {
-      setCourseName(course.courseName);
-      setInternshipPrice(course.internshipPrice || "Rs 99/-");
-      setCertificateDescription(course.certificateDescription || "In this course you will learn how to build a space to a 3-dimensional product...");
-      setCoverImage(course.CoverImageUrl || null);
-      setSelectedCourseId(course._id);
-      console.log("🔧 Editing course, selectedCourseId:", course._id);
-    } else {
-      setCourseName("");
-      setInternshipPrice("Rs 99/-");
-      setCertificateDescription("In this course you will learn how to build a space to a 3-dimensional product...");
-      setCoverImage(null);
-      setSelectedCourseId(null);
-      console.log("➕ Adding new course, selectedCourseId cleared...");
-    }
-    setIsModalOpen(true);
-    setError(null);
-  };
 
   const closeModal = () => {
     console.log("❌ Closing modal...");
@@ -268,7 +277,11 @@ const Courses = () => {
             })}
           </span>
          
-          <FaBell className="text-gray-500 text-lg cursor-pointer" />
+          {/* <FaBell className="text-gray-500 text-lg cursor-pointer" /> */}
+          <FaBell 
+            className="w-6 h-6 text-gray-500 cursor-pointer" 
+            onClick={() => navigate("/notifications")} 
+          />
           <img
             src={profile?.profileImageUrl || profile}
             alt="profile"

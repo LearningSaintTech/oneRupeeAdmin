@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ Add this import
+
 import { FaSearch, FaBell, FaDownload, FaUser } from "react-icons/fa";
 import { useSelector } from "react-redux";
 import { selectToken } from "../../redux/GlobalSlice";
@@ -15,6 +17,8 @@ const Adminuser = () => {
   const token = useSelector(selectToken);
   const profile = useSelector(selectProfile);
   const [users, setUsers] = useState([]);
+  const navigate = useNavigate(); // ✅ initialize
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -150,7 +154,11 @@ const Adminuser = () => {
           </span>
           
           <div className="relative">
-            <FaBell className="text-xl text-gray-600 cursor-pointer" />
+            {/* <FaBell className="text-xl text-gray-600 cursor-pointer" /> */}
+            <FaBell 
+                          className="w-6 h-6 text-gray-500 cursor-pointer" 
+                          onClick={() => navigate("/notifications")} 
+                        />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></div>
           </div>
           <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">

@@ -555,7 +555,12 @@ const SubCourses = () => {
             )}
           </div>
           <div className="relative">
-            <FaBell className="text-gray-600 text-xl cursor-pointer" />
+            {/* <FaBell className="text-gray-600 text-xl cursor-pointer" /> */}
+
+            <FaBell 
+                          className="w-6 h-6 text-gray-500 cursor-pointer" 
+                          onClick={() => navigate("/notifications")} 
+                        />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></div>
           </div>
           <img src={profilePic} alt="profile" className="w-8 sm:w-10 h-8 sm:h-10 rounded-full object-cover" />

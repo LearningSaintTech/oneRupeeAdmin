@@ -110,7 +110,13 @@ const Dashboard = () => {
             className="text-lg rounded px-2 py-1"
           />
 
-          <FaBell className="w-6 h-6 text-gray-500" />
+          {/* <FaBell className="w-6 h-6 text-gray-500" /> */}
+          {/* <Route path="/notification" element={<Notification />} /> */}
+       <FaBell 
+  className="w-6 h-6 text-gray-500 cursor-pointer" 
+  onClick={() => navigate("/notifications")} 
+/>
+
           <img
             src={profileData?.profileImageUrl || defaultProfile}
             alt="User"

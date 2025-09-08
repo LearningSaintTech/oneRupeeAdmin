@@ -1,7 +1,7 @@
 const API_BASE_URL = "https://main.learningsaint.com";
 
 /**
- * JSON-based API request handler with token and error parsing
+ * JSON-based API request handler with auto-token and enhanced error handling
  */
 export const requestJson = async (
   method,
@@ -10,18 +10,21 @@ export const requestJson = async (
   queryParams = {},
   token = null
 ) => {
+  // ✅ Auto-use token from parameter or localStorage
+  const authToken = token || localStorage.getItem("token");
+
   console.log("requestJson called with:", {
     method,
     endpoint,
     data,
     queryParams,
-    token,
+    token: authToken,
   });
 
   try {
     let url = `${API_BASE_URL}${endpoint}`;
 
-    // ✅ Handle query params
+    // Handle query params
     if (queryParams && Object.keys(queryParams).length > 0) {
       const searchParams = new URLSearchParams();
       for (const [key, value] of Object.entries(queryParams)) {
@@ -30,15 +33,12 @@ export const requestJson = async (
         }
       }
       const queryString = searchParams.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
+      if (queryString) url += `?${queryString}`;
     }
 
-    // ✅ Always send Authorization header if token exists
     const headers = {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     };
 
     const options = {
@@ -61,6 +61,10 @@ export const requestJson = async (
     const json = await response.json();
 
     if (!response.ok) {
+      // ✅ Handle 401 separately
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Token may be missing or expired");
+      }
       throw new Error(json.message || `API error (Status: ${response.status})`);
     }
 
@@ -72,7 +76,7 @@ export const requestJson = async (
 };
 
 /**
- * Multipart/form-data request handler
+ * Multipart/form-data request handler with auto-token
  */
 export const requestFormData = async (
   method,
@@ -81,12 +85,14 @@ export const requestFormData = async (
   config = {},
   token = null
 ) => {
+  const authToken = token || localStorage.getItem("token");
+
   console.log("requestFormData called with:", {
     method,
     endpoint,
     data,
     config,
-    token,
+    token: authToken,
   });
 
   const url = `${API_BASE_URL}${endpoint}`;
@@ -94,8 +100,8 @@ export const requestFormData = async (
   const options = {
     method: method.toUpperCase(),
     headers: {
-      Accept: "application/json", // ✅ Expect JSON
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Accept: "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...config.headers,
     },
     body: data,
@@ -113,6 +119,9 @@ export const requestFormData = async (
     const json = await response.json();
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error("Unauthorized: Token may be missing or expired");
+      }
       throw new Error(json.message || `API error (Status: ${response.status})`);
     }
 

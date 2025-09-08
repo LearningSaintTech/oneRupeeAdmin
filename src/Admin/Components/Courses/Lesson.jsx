@@ -358,7 +358,11 @@ const Lessons = () => {
           </span>
           
           <div className="relative">
-            <FaBell className="text-gray-600 text-lg sm:text-xl cursor-pointer" />
+            {/* <FaBell className="text-gray-600 text-lg sm:text-xl cursor-pointer" /> */}
+            <FaBell 
+              className="w-6 h-6 text-gray-500 cursor-pointer" 
+              onClick={() => navigate("/notifications")} 
+            />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></div>
           </div>
           <img
@@ -427,20 +431,26 @@ const Lessons = () => {
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => {
-                            console.log("Editing lesson:", lesson._id || lesson.lessonId);
-                            setFormData({
-                              _id: lesson._id || lesson.lessonId,
-                              lessonName: lesson.lessonName,
-                              lessonLiveClassLink: lesson.classLink || "",
-                              lessonDescription: lesson.description || "",
-                              date: lesson.date ? new Date(lesson.date) : null,
-                              startTime: lesson.startTime ? new Date(`1970-01-01 ${convertTo12Hour(lesson.startTime)}`) : null,
-                              endTime: lesson.endTime ? new Date(`1970-01-01 ${convertTo12Hour(lesson.endTime)}`) : null,
-                              videoLink: lesson.recordedVideoLink || "",
-                              introVideoUrl: null,
-                            });
-                            setIsModalOpen(true);
-                          }}
+  console.log("Editing lesson:", lesson._id || lesson.lessonId);
+
+  const [startHour, startMinute] = lesson.startTime ? lesson.startTime.split(":") : [];
+  const [endHour, endMinute] = lesson.endTime ? lesson.endTime.split(":") : [];
+
+  setFormData({
+    _id: lesson._id || lesson.lessonId,
+    lessonName: lesson.lessonName,
+    lessonLiveClassLink: lesson.classLink || "",
+    lessonDescription: lesson.description || "",
+    date: lesson.date ? new Date(lesson.date) : null,
+    startTime: lesson.startTime ? new Date(1970, 0, 1, startHour, startMinute) : null,
+    endTime: lesson.endTime ? new Date(1970, 0, 1, endHour, endMinute) : null,
+    videoLink: lesson.recordedVideoLink || "",
+    introVideoUrl: null,
+  });
+
+  setIsModalOpen(true);
+}}
+
                           className="bg-[#FF8800] p-2 sm:p-2.5 rounded text-white hover:bg-[#e67a00] transition shadow-sm"
                         >
                           <FiEdit className="w-4 h-4" />
@@ -660,5 +670,4 @@ const Lessons = () => {
     </div>
   );
 };
-
 export default Lessons;

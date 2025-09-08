@@ -7,6 +7,8 @@ const initialState = {
   token: null,
   user: null,
   profile: null,
+  fcmToken: null,   // ✅ new
+  deviceId: null, 
   loading: false,
   error: null,
 };
@@ -51,6 +53,14 @@ const globalSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
+
+    setFcmToken: (state, action) => {
+  state.fcmToken = action.payload;
+},
+setDeviceId: (state, action) => {
+  state.deviceId = action.payload;
+},
+
     clearData: (state) => {
       state.data = {};
       state.token = null;
@@ -71,6 +81,8 @@ export const {
   setLoading,
   setError,
   clearData,
+  setFcmToken,   // ✅
+  setDeviceId,
 } = globalSlice.actions;
 
 // ✅ Selectors
