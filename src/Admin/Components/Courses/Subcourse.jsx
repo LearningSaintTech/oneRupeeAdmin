@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaSearch, FaBell, FaPlus, FaVideo } from "react-icons/fa";
+import { FaSearch, FaBell, FaPlus } from "react-icons/fa";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
 import profilePic from "../../../assets/images/Profile Picture (1).svg";
 import rectangleImg from "../../../assets/images/classrom.svg";
@@ -31,7 +31,6 @@ const parseDuration = (durationStr) => {
     return { hours: "00", minutes: "00", seconds: "00" };
   }
 
-  // Normalize the input by replacing "hours" with "h", "minutes" with "min", etc.
   const normalizedStr = durationStr
     .toLowerCase()
     .replace("hours", "h")
@@ -41,7 +40,6 @@ const parseDuration = (durationStr) => {
     .replace("seconds", "sec")
     .replace("second", "sec");
 
-  // Regex to match formats like "Xh Ymin Zsec", "Xh Ymin", or "Xh"
   const match = normalizedStr.match(/(\d+)\s*h\s*(?:(\d+)\s*min)?\s*(?:(\d+)\s*sec)?/);
   if (!match) {
     console.warn("⚠️ Invalid duration format, returning default:", durationStr);
@@ -70,17 +68,26 @@ const SubCourses = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalSubcourses: 0,
+    limit: 10, // Changed to 5 subcourses per page
+  });
   const [formData, setFormData] = useState({
     courseId: "",
     name: "",
     description: "",
     price: "",
+    certificatePrice: "",
     lessons: "",
     durationHours: "00",
     durationMinutes: "00",
     durationSeconds: "00",
     certificateDescription: "",
     introVideo: null,
+    isUpComingCourse: false,
   });
   const [contentFormData, setContentFormData] = useState({
     contentName: "",
@@ -91,11 +98,9 @@ const SubCourses = () => {
   });
   const [token] = useState(localStorage.getItem("authToken") || "");
 
-  // Log location state and courseId
   console.log("📍 Location state:", location.state);
   console.log("📍 Course ID from state:", courseId);
 
-  // Validate courseId and update formData
   useEffect(() => {
     if (!courseId) {
       console.error("❌ Course ID is missing or undefined");
@@ -108,7 +113,6 @@ const SubCourses = () => {
     }
   }, [courseId, navigate]);
 
-  // Validate token on mount
   useEffect(() => {
     console.log("🔑 Checking token:", token ? token.slice(0, 10) + "..." : "No token");
     if (token) {
@@ -139,56 +143,96 @@ const SubCourses = () => {
     }
   }, [token, navigate]);
 
-  // Fetch subcourses by courseId
-  useEffect(() => {
-    const loadSubCourses = async () => {
-      console.log("📡 Fetching subcourses for courseId:", courseId);
-      if (!token || !courseId) {
-        console.error("❌ Missing token or courseId. Redirecting...");
-        setError("Please log in or select a course.");
-        toast.error("Please log in or select a course.");
-        navigate(!token ? "/login" : "/courses");
-        return;
-      }
+  const loadSubCourses = async (page = 1) => {
+    console.log("📡 Fetching subcourses for courseId:", courseId, "page:", page);
+    if (!token || !courseId) {
+      console.error("❌ Missing token or courseId. Redirecting...");
+      setError("Please log in or select a course.");
+      toast.error("Please log in or select a course.");
+      navigate(!token ? "/login" : "/courses");
+      return;
+    }
 
-      try {
-        console.log("📡 Calling fetchSubCoursesByCourseId with token:", token.slice(0, 10) + "...");
-        const response = await fetchSubCoursesByCourseId(courseId, token);
-        console.log("✅ Fetched subcourses:", response.data);
-        const mappedCourses = response.data.map((course, index) => {
-          const { hours, minutes, seconds } = parseDuration(course.totalDuration);
-          const mappedCourse = {
-            sn: (index + 1).toString().padStart(2, "0"),
-            id: course._id,
-            name: course.subcourseName,
-            duration: `${hours}:${minutes}:${seconds}`,
-            price: `₹${course.price}`,
-            description: course.subCourseDescription,
-          };
-          console.log("🔍 Mapped course:", mappedCourse);
-          return mappedCourse;
-        });
-        setSubCourses(mappedCourses);
-        setError(null);
-        console.log("✅ Updated subCourses state:", mappedCourses);
-        console.log("📊 Total subcourses fetched:", mappedCourses.length);
-      } catch (error) {
-        console.error("❌ Error fetching subcourses:", error.message, error.stack);
-        setError(`Failed to fetch subcourses: ${error.message}`);
-        toast.error(`Failed to fetch subcourses: ${error.message}`);
-        setSubCourses([]);
-      }
-    };
+    setIsLoading(true);
+    try {
+      console.log("📡 Calling fetchSubCoursesByCourseId with token:", token.slice(0, 10) + "...");
+      const response = await fetchSubCoursesByCourseId(courseId, page, pagination.limit);
+
+      console.log("✅ Raw API response:", JSON.stringify(response.data, null, 2));
+
+      // Sanitize pagination data
+      const paginationData = response.data?.pagination || {};
+      const currentPage = Number(paginationData.currentPage) || 1;
+      const totalSubcourses = Number(paginationData.totalSubcourses) || 0;
+      const limit = Number(paginationData.limit) || 5; // Changed to 5
+      const totalPages = Math.max(1, Math.ceil(totalSubcourses / limit));
+
+      const mappedCourses = (response.data?.subcourses || []).map((course, index) => {
+        const { hours, minutes, seconds } = parseDuration(course.totalDuration);
+        const isUpComingCourse = Boolean(course.isUpComingCourse);
+
+        const mappedCourse = {
+          sn: ((currentPage - 1) * limit + index + 1).toString().padStart(2, "0"),
+          id: course._id,
+          name: course.subcourseName,
+          description: course.subCourseDescription,
+          price: `₹${course.price}`,
+          certificatePrice: course.certificatePrice ? `₹${course.certificatePrice}` : "₹0",
+          certificateDescription: course.certificateDescription || "",
+          totalLessons: course.totalLessons || "",
+          totalDuration: course.totalDuration || "",
+          duration: `${hours}:${minutes}:${seconds}`,
+          introVideoUrl: course.introVideoUrl || "",
+          thumbnailImageUrl: course.thumbnailImageUrl || "",
+          isUpComingCourse,
+        };
+
+        return mappedCourse;
+      });
+
+      console.log("✅ Final mapped subCourses:", mappedCourses);
+      setSubCourses(mappedCourses);
+      setPagination({
+        currentPage,
+        totalPages,
+        totalSubcourses,
+        limit,
+      });
+      setError(null);
+      console.log("✅ Updated subCourses state:", mappedCourses);
+      console.log("✅ Updated pagination state:", {
+        currentPage,
+        totalPages,
+        totalSubcourses,
+        limit,
+      });
+    } catch (error) {
+      console.error("❌ Error fetching subcourses:", error.message, error.stack);
+      setError(`Failed to fetch subcourses: ${error.message}`);
+      toast.error(`Failed to fetch subcourses: ${error.message}`);
+      setSubCourses([]);
+      setPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalSubcourses: 0,
+        limit: 5, // Changed to 5
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (!searchQuery && courseId) {
-      loadSubCourses();
+      loadSubCourses(pagination.currentPage);
     }
   }, [token, navigate, searchQuery, courseId]);
 
-  // Debounced search function
   const performSearch = useCallback(
-    debounce(async (query) => {
+    debounce(async (query, page = 1) => {
       if (!query) {
         setIsSearching(false);
+        loadSubCourses(pagination.currentPage);
         return;
       }
       if (!token || !courseId) {
@@ -199,47 +243,105 @@ const SubCourses = () => {
         return;
       }
 
+      setIsLoading(true);
       try {
         setIsSearching(true);
-        console.log("🔍 Searching subcourses with query:", query, "for courseId:", courseId);
+        console.log("🔍 Searching subcourses with query:", query, "for courseId:", courseId, "page:", page);
         const response = await searchSubCourse(query, token, courseId);
-        console.log("✅ Search results:", response.data);
-        const mappedCourses = response.data.map((course, index) => {
-          const { hours, minutes, seconds } = parseDuration(course.totalDuration);
-          return {
-            sn: (index + 1).toString().padStart(2, "0"),
+        console.log("✅ Search API response:", JSON.stringify(response.data, null, 2));
+
+        // Since searchSubCourse does not support pagination, assume all results are on a single page
+        const subcourses = response.data?.subcourses || [];
+        const totalSubcourses = subcourses.length;
+        const limit = pagination.limit; // Use the same limit as fetchSubCourses
+        const totalPages = Math.max(1, Math.ceil(totalSubcourses / limit));
+        const currentPage = 1; // Force page 1 since pagination is not supported
+
+        // Map search results to match subCourses structure
+        const mappedCourses = subcourses.map((course, index) => {
+          const { hours, minutes, seconds } = parseDuration(course.totalDuration || "");
+          const isUpComingCourse = Boolean(course.isUpComingCourse);
+          const mappedCourse = {
+            sn: (index + 1).toString().padStart(2, "0"), // No pagination offset since single page
             id: course._id,
-            name: course.subcourseName,
+            name: course.subcourseName || "Unnamed Course",
             duration: `${hours}:${minutes}:${seconds}`,
-            price: `₹${course.price}`,
-            description: course.subCourseDescription,
+            price: course.price ? `₹${course.price}` : "₹0",
+            description: course.subCourseDescription || "",
+            isUpComingCourse,
+            certificatePrice: course.certificatePrice ? `₹${course.certificatePrice}` : "₹0",
+            totalLessons: course.totalLessons || "",
+            certificateDescription: course.certificateDescription || "",
+            introVideoUrl: course.introVideoUrl || "",
+            thumbnailImageUrl: course.thumbnailImageUrl || "",
           };
+          console.log("🔍 Mapped search course:", mappedCourse);
+          return mappedCourse;
         });
+
+        console.log("✅ Final mapped search subCourses:", mappedCourses);
         setSubCourses(mappedCourses);
+        setPagination({
+          currentPage,
+          totalPages,
+          totalSubcourses,
+          limit,
+        });
         setError(null);
         console.log("✅ Updated subCourses state after search:", mappedCourses);
+        console.log("✅ Updated pagination state after search:", {
+          currentPage,
+          totalPages,
+          totalSubcourses,
+          limit,
+        });
       } catch (error) {
         console.error("❌ Error searching subcourses:", error.response?.data, error.message);
         setError(`Failed to search subcourses: ${error.response?.data?.message || error.message}`);
         toast.error(`Failed to search subcourses: ${error.message}`);
         setSubCourses([]);
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalSubcourses: 0,
+          limit: pagination.limit,
+        });
       } finally {
         setIsSearching(false);
+        setIsLoading(false);
       }
-    }, 500),
-    [token, navigate, courseId]
+    }, 300),
+    [token, navigate, courseId, pagination.limit]
   );
 
   const handleSearchChange = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
     console.log("🔍 Search query updated:", query);
-    performSearch(query);
+    setPagination((prev) => ({ ...prev, currentPage: 1 }));
+    performSearch(query, 1);
   };
 
   const handleClearSearch = () => {
     setSearchQuery("");
     console.log("🧹 Search query cleared");
+    setPagination((prev) => ({ ...prev, currentPage: 1 }));
+    loadSubCourses(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    console.log("📄 Attempting to change to page:", newPage, "from currentPage:", pagination.currentPage);
+    if (newPage < 1 || newPage > pagination.totalPages || newPage === pagination.currentPage) {
+      console.log(`⚠️ Invalid or redundant page change: newPage=${newPage}, totalPages=${pagination.totalPages}, currentPage=${pagination.currentPage}`);
+      return;
+    }
+    if (isSearching) {
+      console.log("⚠️ Pagination not supported for search results");
+      return; // Prevent page changes during search since search API doesn't support pagination
+    }
+    setPagination((prev) => ({ ...prev, currentPage: newPage }));
+    console.log("📄 Pagination state updated to page:", newPage);
+    loadSubCourses(newPage);
   };
 
   const handleInputChange = (e) => {
@@ -264,18 +366,20 @@ const SubCourses = () => {
     }
 
     const cleanPrice = formData.price.replace("₹", "").trim();
+    const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
     if (
       !formData.name.trim() ||
       !formData.description.trim() ||
       !cleanPrice ||
       isNaN(cleanPrice) ||
       parseFloat(cleanPrice) <= 0 ||
+      (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
       !formData.lessons ||
       isNaN(formData.lessons) ||
       parseInt(formData.lessons) <= 0 ||
       !formData.courseId
     ) {
-      setError("Please fill in all required fields with valid values (name, description, price, lessons, courseId).");
+      setError("Please fill in all required fields with valid values.");
       toast.error("Please fill in all required fields with valid values.");
       console.error("❌ Validation failed for adding subcourse");
       return;
@@ -288,35 +392,20 @@ const SubCourses = () => {
     formDataToSend.append("subcourseName", formData.name.trim());
     formDataToSend.append("subCourseDescription", formData.description.trim());
     formDataToSend.append("price", cleanPrice);
-    formDataToSend.append("certificatePrice", formData.certificatePrice || "0");
+    formDataToSend.append("certificatePrice", cleanCertificatePrice);
     formDataToSend.append("certificateDescription", formData.certificateDescription || "");
     formDataToSend.append("totalLessons", formData.lessons.toString());
     formDataToSend.append("totalDuration", duration);
-    if (formData.introVideo) {
-      formDataToSend.append("introVideoUrl", formData.introVideo);
-    }
+    formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
+    formDataToSend.append("introVideoUrl", formData.introVideo);
 
     try {
-      console.log("📡 Sending addSubCourse request with formData:", formDataToSend);
+      console.log("📡 Sending addSubCourse request");
       const response = await addSubCourse(formDataToSend, token);
       console.log("✅ Subcourse added successfully:", response);
       setIsAddModalOpen(false);
       toast.success("Subcourse added successfully.");
-      const refreshedResponse = await fetchSubCoursesByCourseId(courseId, token);
-      const mappedCourses = refreshedResponse.data.map((course, index) => {
-        const { hours, minutes, seconds } = parseDuration(course.totalDuration);
-        return {
-          sn: (index + 1).toString().padStart(2, "0"),
-          id: course._id,
-          name: course.subcourseName,
-          duration: `${hours}:${minutes}:${seconds}`,
-          price: `₹${course.price}`,
-          description: course.subCourseDescription,
-        };
-      });
-      setSubCourses(mappedCourses);
-      setError(null);
-      console.log("✅ Refreshed subCourses state:", mappedCourses);
+      loadSubCourses(pagination.currentPage);
     } catch (error) {
       console.error("❌ Error adding subcourse:", error.response?.data, error.message);
       setError(`Failed to add subcourse: ${error.response?.data?.message || error.message}`);
@@ -334,17 +423,19 @@ const SubCourses = () => {
     }
 
     const cleanPrice = formData.price.replace("₹", "").trim();
+    const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
     if (
       !formData.name.trim() ||
       !formData.description.trim() ||
       !cleanPrice ||
       isNaN(cleanPrice) ||
       parseFloat(cleanPrice) <= 0 ||
+      (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
       !formData.lessons ||
       isNaN(formData.lessons) ||
       parseInt(formData.lessons) <= 0
     ) {
-      setError("Please fill in all required fields with valid values (name, description, price, lessons).");
+      setError("Please fill in all required fields with valid values.");
       toast.error("Please fill in all required fields with valid values.");
       console.error("❌ Validation failed for editing subcourse");
       return;
@@ -355,9 +446,11 @@ const SubCourses = () => {
     formDataToSend.append("subcourseName", formData.name.trim());
     formDataToSend.append("subCourseDescription", formData.description.trim());
     formDataToSend.append("price", cleanPrice);
+    formDataToSend.append("certificatePrice", cleanCertificatePrice);
     formDataToSend.append("totalLessons", formData.lessons.toString());
     formDataToSend.append("totalDuration", duration);
     formDataToSend.append("certificateDescription", formData.certificateDescription);
+    formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
     if (formData.introVideo) {
       formDataToSend.append("introVideoUrl", formData.introVideo);
     }
@@ -372,29 +465,17 @@ const SubCourses = () => {
         name: "",
         description: "",
         price: "",
+        certificatePrice: "",
         lessons: "",
         durationHours: "00",
         durationMinutes: "00",
         durationSeconds: "00",
         certificateDescription: "",
         introVideo: null,
+        isUpComingCourse: false,
       });
       toast.success("Subcourse updated successfully.");
-      const refreshedResponse = await fetchSubCoursesByCourseId(courseId, token);
-      const mappedCourses = refreshedResponse.data.map((course, index) => {
-        const { hours, minutes, seconds } = parseDuration(course.totalDuration);
-        return {
-          sn: (index + 1).toString().padStart(2, "0"),
-          id: course._id,
-          name: course.subcourseName,
-          duration: `${hours}:${minutes}:${seconds}`,
-          price: `₹${course.price}`,
-          description: course.subCourseDescription,
-        };
-      });
-      setSubCourses(mappedCourses);
-      setError(null);
-      console.log("✅ Refreshed subCourses state:", mappedCourses);
+      loadSubCourses(pagination.currentPage);
     } catch (error) {
       console.error("❌ Error updating subcourse:", error.response?.data, error.message);
       setError(`Failed to update subcourse: ${error.response?.data?.message || error.message}`);
@@ -417,21 +498,22 @@ const SubCourses = () => {
       console.log("✅ Subcourse deleted successfully:", response);
       setIsDeleteModalOpen(false);
       toast.success("Subcourse deleted successfully.");
-      const refreshedResponse = await fetchSubCoursesByCourseId(courseId, token);
-      const mappedCourses = refreshedResponse.data.map((course, index) => {
-        const { hours, minutes, seconds } = parseDuration(course.totalDuration);
-        return {
-          sn: (index + 1).toString().padStart(2, "0"),
-          id: course._id,
-          name: course.subcourseName,
-          duration: `${hours}:${minutes}:${seconds}`,
-          price: `₹${course.price}`,
-          description: course.subCourseDescription,
-        };
-      });
-      setSubCourses(mappedCourses);
-      setError(null);
-      console.log("✅ Refreshed subCourses state:", mappedCourses);
+
+      const newTotalSubcourses = Math.max(0, pagination.totalSubcourses - 1);
+      const newTotalPages = Math.max(1, Math.ceil(newTotalSubcourses / pagination.limit));
+      const newPage = Math.min(pagination.currentPage, newTotalPages);
+      setPagination((prev) => ({
+        ...prev,
+        currentPage: newPage,
+        totalPages: newTotalPages,
+        totalSubcourses: newTotalSubcourses,
+      }));
+
+      if (searchQuery) {
+        performSearch(searchQuery, newPage);
+      } else {
+        loadSubCourses(newPage);
+      }
     } catch (error) {
       console.error("❌ Error deleting subcourse:", error.response?.data, error.message);
       setError(`Failed to delete subcourse: ${error.response?.data?.message || error.message}`);
@@ -439,21 +521,49 @@ const SubCourses = () => {
     }
   };
 
+  const handleToggleAvailability = async (courseId, isUpComingCourse) => {
+    console.log(`🔧 Toggling isUpComingCourse for course ${courseId} to ${!isUpComingCourse}`);
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append("isUpComingCourse", !isUpComingCourse ? 1 : 0);
+
+      const response = await updateSubCourse(courseId, formDataToSend, token);
+      console.log("✅ API response for toggle:", response.data);
+
+      const updatedIsUpComingCourse = Boolean(response.data.isUpComingCourse);
+
+      setSubCourses((prevCourses) =>
+        prevCourses.map((course) =>
+          course.id === courseId
+            ? { ...course, isUpComingCourse: updatedIsUpComingCourse }
+            : course
+        )
+      );
+
+      toast.success("Course availability updated successfully.");
+    } catch (error) {
+      console.error("❌ Error updating availability:", error.response?.data, error.message);
+      toast.error(`Failed to update availability: ${error.message}`);
+    }
+  };
+
   const openEditModal = (course) => {
     console.log("✏️ Opening edit modal for course:", course);
-    const { hours, minutes, seconds } = parseDuration(course.totalDuration);
+    const { hours, minutes, seconds } = parseDuration(course.duration);
     setSelectedSubCourse(course);
     setFormData({
       courseId: courseId || "",
       name: course.name,
       description: course.description,
       price: course.price.replace("₹", ""),
-      lessons: course.lessons || "",
+      certificatePrice: course.certificatePrice ? course.certificatePrice.replace("₹", "") : "",
+      lessons: course.totalLessons?.toString() || "",
       durationHours: hours,
       durationMinutes: minutes,
       durationSeconds: seconds,
       certificateDescription: course.certificateDescription || "",
-      introVideo: null,
+      introVideoUrl: course.introVideoUrl,
+      isUpComingCourse: course.isUpComingCourse,
     });
     setIsEditModalOpen(true);
   };
@@ -501,39 +611,24 @@ const SubCourses = () => {
 
   const handleRowClick = (course) => {
     console.log("📋 Subcourse row clicked:", course);
-    if (!courseId) {
-      console.error("❌ Course ID is missing");
-      setError("Course ID is missing.");
-      toast.error("Course ID is missing.");
+    if (!courseId || !course.id) {
+      console.error("❌ Missing courseId or subCourseId");
+      setError("Missing course or subcourse ID.");
+      toast.error("Missing course or subcourse ID.");
       return;
     }
-    if (!course.id) {
-      console.error("❌ Subcourse ID is missing");
-      setError("Subcourse ID is missing.");
-      toast.error("Subcourse ID is missing.");
-      return;
-    }
-    console.log("➡️ Navigating to lesson with:", {
-      courseId,
-      subCourseId: course.id,
-    });
-    navigate("/lesson", {
-      state: {
-        courseId,
-        subCourseId: course.id,
-      },
-    });
+    console.log("➡️ Navigating to lesson with:", { courseId, subCourseId: course.id });
+    navigate("/lesson", { state: { courseId, subCourseId: course.id } });
   };
 
   return (
     <div className="p-4 sm:p-6 bg-white min-h-screen">
       <Toaster position="top-right" reverseOrder={false} />
-      {/* Header with Sub Courses title, time, bell, and profile */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">Sub Courses</h1>
         <div className="flex items-center gap-3 sm:gap-4">
           <span className="text-sm text-gray-700 whitespace-nowrap">
-            Wed, <span className="font-semibold">12:31 PM IST</span>
+            Wed, <span className="font-semibold">01:54 PM IST</span>
           </span>
           <div className="relative">
             <FaSearch className="absolute left-3 top-3 text-gray-400" />
@@ -555,19 +650,16 @@ const SubCourses = () => {
             )}
           </div>
           <div className="relative">
-            {/* <FaBell className="text-gray-600 text-xl cursor-pointer" /> */}
-
-            <FaBell 
-                          className="w-6 h-6 text-gray-500 cursor-pointer" 
-                          onClick={() => navigate("/notifications")} 
-                        />
+            <FaBell
+              className="w-6 h-6 text-gray-500 cursor-pointer"
+              onClick={() => navigate("/notifications")}
+            />
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></div>
           </div>
           <img src={profilePic} alt="profile" className="w-8 sm:w-10 h-8 sm:h-10 rounded-full object-cover" />
         </div>
       </div>
 
-      {/* Action bar */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
           <button
@@ -613,33 +705,27 @@ const SubCourses = () => {
         </div>
       </div>
 
-      {/* Table with heading */}
       <div>
         {error && <p className="text-red-500 mb-4">{error}</p>}
-        {isSearching && <p className="text-gray-600 mb-4">Searching...</p>}
+        {(isSearching || isLoading) && <p className="text-gray-600 mb-4">Loading...</p>}
         <h2 className="text-lg font-medium mb-3">Sub Courses</h2>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">S.N.</th>
-                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">
-                  Sub Course Name
-                </th>
+                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Sub Course Name</th>
                 <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Duration</th>
-                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">
-                  Sub Course Price
-                </th>
-                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">
-                  Sub Course Description
-                </th>
+                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Sub Course Price</th>
+                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Sub Course Description</th>
                 <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Edit</th>
+                <th className="bg-yellow-400 py-4 px-4 text-center text-white font-semibold text-sm">Course Availability</th>
               </tr>
             </thead>
             <tbody>
-              {subCourses.length === 0 && !error && !isSearching && (
+              {subCourses.length === 0 && !error && !isSearching && !isLoading && (
                 <tr>
-                  <td colSpan="6" className="py-4 px-4 text-center text-sm text-gray-600">
+                  <td colSpan="7" className="py-4 px-4 text-center text-sm text-gray-600">
                     No subcourses available.
                   </td>
                 </tr>
@@ -677,11 +763,97 @@ const SubCourses = () => {
                       </button>
                     </div>
                   </td>
+                  <td className="py-4 px-4 text-center">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={course.isUpComingCourse}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleToggleAvailability(course.id, course.isUpComingCourse);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div
+                        className={`w-11 h-6 rounded-full transition ${
+                          course.isUpComingCourse ? "bg-yellow-400" : "bg-gray-200"
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-[2px] left-[2px] h-5 w-5 bg-white border border-gray-300 rounded-full transition-transform ${
+                            course.isUpComingCourse ? "translate-x-full border-white" : ""
+                          }`}
+                        ></div>
+                      </div>
+                    </label>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {/* Updated Pagination Controls */}
+        {pagination.totalPages > 1 && !isSearching && (
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+            <div className="text-sm text-gray-600">
+              Showing {(pagination.currentPage - 1) * pagination.limit + 1} to{" "}
+              {Math.min(pagination.currentPage * pagination.limit, pagination.totalSubcourses)} of{" "}
+              {pagination.totalSubcourses} subcourses
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={pagination.currentPage === 1 || isSearching || isLoading}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                  pagination.currentPage === 1 || isSearching || isLoading
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-[#FF8800] to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600"
+                }`}
+              >
+                Previous
+              </button>
+              <div className="flex gap-1">
+                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    disabled={isSearching}
+                    className={`px-3 py-1 rounded-md text-sm font-medium ${
+                      pagination.currentPage === page
+                        ? "bg-yellow-400 text-white"
+                        : isSearching
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={pagination.currentPage === pagination.totalPages || isSearching || isLoading}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                  pagination.currentPage === pagination.totalPages || isSearching || isLoading
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-[#FF8800] to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+        {isSearching && pagination.totalSubcourses > 0 && (
+          <div className="text-sm text-gray-600 mt-6">
+            Showing {pagination.totalSubcourses} search result{pagination.totalSubcourses !== 1 ? "s" : ""}
+          </div>
+        )}
+        {isSearching && pagination.totalSubcourses === 0 && !isLoading && (
+          <div className="text-sm text-gray-600 mt-6">
+            No subcourses match your search query.
+          </div>
+        )}
       </div>
 
       {/* Add Sub Course Modal */}
@@ -778,6 +950,27 @@ const SubCourses = () => {
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  CERTIFICATE PRICE
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="certificatePrice"
+                    value={formData.certificatePrice}
+                    onChange={handleInputChange}
+                    placeholder="₹500"
+                    className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+                  />
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FF8800]"
+                    aria-label="edit certificate price"
+                  >
+                    <FiEdit />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   NO. OF LESSONS
                 </label>
                 <div className="relative">
@@ -865,6 +1058,25 @@ const SubCourses = () => {
                   >
                     <FiEdit />
                   </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  UPCOMING COURSE
+                </label>
+                <div className="relative">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="isUpComingCourse"
+                      checked={formData.isUpComingCourse}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, isUpComingCourse: e.target.checked }))
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  </label>
                 </div>
               </div>
               <div className="flex justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
@@ -980,6 +1192,27 @@ const SubCourses = () => {
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  CERTIFICATE PRICE
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="certificatePrice"
+                    value={formData.certificatePrice}
+                    onChange={handleInputChange}
+                    placeholder="₹500"
+                    className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+                  />
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FF8800]"
+                    aria-label="edit certificate price"
+                  >
+                    <FiEdit />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   NO. OF LESSONS
                 </label>
                 <div className="relative">
@@ -1026,7 +1259,9 @@ const SubCourses = () => {
                     className="flex-1 p-2 sm:p-2.5 border-r border-orange-500 focus:outline-none text-xs sm:text-sm"
                   >
                     {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                      <option key={m} value={m.toString().padStart(2, "0")}>{m.toString().padStart(2, "0")}</option>
+                      <option key={m} value={m.toString().padStart(2, "0")}>
+                        {m.toString().padStart(2, "0")}
+                      </option>
                     ))}
                   </select>
                   <span className="px-1 sm:px-2 border-r border-orange-500 text-xs sm:text-sm">
@@ -1039,7 +1274,9 @@ const SubCourses = () => {
                     className="flex-1 p-2 sm:p-2.5 border-r border-orange-500 focus:outline-none text-xs sm:text-sm"
                   >
                     {Array.from({ length: 60 }, (_, i) => i).map((s) => (
-                      <option key={s} value={s.toString().padStart(2, "0")}>{s.toString().padStart(2, "0")}</option>
+                      <option key={s} value={s.toString().padStart(2, "0")}>
+                        {s.toString().padStart(2, "0")}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1065,6 +1302,25 @@ const SubCourses = () => {
                   </button>
                 </div>
               </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  UPCOMING COURSE
+                </label>
+                <div className="relative">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="isUpComingCourse"
+                      checked={formData.isUpComingCourse}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, isUpComingCourse: e.target.checked }))
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  </label>
+                </div>
+              </div>
               <div className="flex justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
                   onClick={() => setIsEditModalOpen(false)}
@@ -1086,7 +1342,7 @@ const SubCourses = () => {
 
       {/* Delete Sub Course Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex justify-center items-center z-50">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/50 flex justify-center items-center z-50">
           <div className="bg-white w-[90%] sm:w-[400px] p-4 sm:p-6 rounded-xl shadow-xl">
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Delete Sub Course</h3>
             <p className="text-sm text-gray-600 mb-6">
@@ -1113,7 +1369,7 @@ const SubCourses = () => {
 
       {/* Add Content Modal */}
       {isAddContentModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex justify-center items-center z-50">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/50 flex justify-center items-center z-50">
           <div className="bg-white w-[95%] max-w-[1000px] p-6 rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-gray-800">Add Content</h3>
@@ -1186,88 +1442,67 @@ const SubCourses = () => {
                           className="text-orange-500 focus:ring-orange-500"
                         />
                         <label htmlFor="paid" className="text-sm text-gray-700">Paid</label>
-                        {contentFormData.isPaid && (
-                          <input
-                            type="text"
-                            name="price"
-                            value={contentFormData.price}
-                            onChange={handleContentInputChange}
-                            placeholder="Rs 99/-"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          />
-                        )}
                       </div>
+                      {contentFormData.isPaid && (
+                        <input
+                          type="text"
+                          name="price"
+                          value={contentFormData.price}
+                          onChange={handleContentInputChange}
+                          placeholder="₹100"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      )}
                     </div>
-                  </div>
-                  <div className="pt-4">
-                    <button
-                      onClick={handleAddContent}
-                      className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 text-white py-3 px-6 rounded-lg font-semibold hover:from-orange-600 hover:to-yellow-600 transition"
-                    >
-                      Add
-                    </button>
                   </div>
                 </div>
               </div>
               <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <h4 className="text-lg font-semibold text-gray-800 mb-4">Content Added</h4>
-                <div className="space-y-3">
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">Typography</h5>
-                      <p className="text-gray-600 text-sm">Free</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
+                    <select
+                      name="contentType"
+                      value={contentFormData.contentType || ""}
+                      onChange={handleContentInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="">Select Content Type</option>
+                      <option value="video">Video</option>
+                      <option value="document">Document</option>
+                      <option value="quiz">Quiz</option>
+                    </select>
                   </div>
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">Typography</h5>
-                      <p className="text-gray-600 text-sm">Paid</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">User Feedback</h5>
-                      <p className="text-gray-600 text-sm">Free</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">Typography</h5>
-                      <p className="text-gray-600 text-sm">Paid</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">Color Scheme</h5>
-                      <p className="text-gray-600 text-sm">Free</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <h5 className="text-orange-500 font-semibold text-lg">Button Styles</h5>
-                      <p className="text-gray-600 text-sm">Paid</p>
-                    </div>
-                    <button className="text-orange-500 hover:text-orange-600">
-                      <FiTrash2 className="w-5 h-5" />
-                    </button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload File</label>
+                    <input
+                      type="file"
+                      accept="video/*, application/pdf"
+                      onChange={(e) =>
+                        setContentFormData((prev) => ({
+                          ...prev,
+                          file: e.target.files[0],
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="flex justify-end gap-4 mt-6">
+              <button
+                onClick={() => setIsAddContentModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddContent}
+                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 transition"
+              >
+                Add Content
+              </button>
             </div>
           </div>
         </div>

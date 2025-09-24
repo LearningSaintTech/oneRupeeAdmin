@@ -91,5 +91,6 @@ export const selectUser = (state) => state.global.user;
 export const selectProfile = (state) => state.global.profile;
 export const selectLoading = (state) => state.global.loading;
 export const selectError = (state) => state.global.error;
+export const selectGlobalData = (state) => state.global.data;
 
 export default globalSlice.reducer;

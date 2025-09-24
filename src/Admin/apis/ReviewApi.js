@@ -2,13 +2,13 @@
 import { requestJson } from "../Services/ApiConnector";
 
 // ✅ Get Ratings (all subcourses with avgRating)
-export const getRatings = async (token = null) => {
+export const getRatings = async (page = 1, limit = 5, token = null) => {
   try {
     const response = await requestJson(
       "GET",
       "/api/admin/ratings/get-ratings",
       null,   // no body
-      {},     // no query params
+      { page, limit },   // query params
       token   // auth token if needed
     );
 
@@ -19,6 +19,7 @@ export const getRatings = async (token = null) => {
     throw error;
   }
 };
+
 
 // ✅ Search Ratings (by keyword)
 export const searchRatings = async (keyword, token = null) => {

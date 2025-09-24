@@ -368,18 +368,19 @@ const Profile = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  name="mobileNumber"
-                  value={profileData.mobileNumber || ""}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
+             <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Phone Number
+  </label>
+  <input
+    type="text"
+    name="mobileNumber"
+    value={profileData.mobileNumber || ""}
+    readOnly // ✅ makes it non-editable but still visible
+    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:outline-none"
+  />
+</div>
+
             </div>
           </div>
 

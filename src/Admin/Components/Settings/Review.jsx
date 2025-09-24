@@ -8,17 +8,22 @@ import {
 } from "react-icons/fa";
 import { getRatings, searchRatings, exportRatings } from "../../apis/ReviewApi";
 import { useSelector } from "react-redux";
-import { selectToken, selectProfile } from "../../redux/GlobalSlice"; // ✅ import profile
+import { selectToken, selectProfile } from "../../redux/GlobalSlice";
 
 const defaultAvatar = "https://via.placeholder.com/150?text=Profile"; // fallback
 
 const Review = () => {
   const token = useSelector(selectToken);
-  const profile = useSelector(selectProfile); // ✅ get profile from Redux
+  const profile = useSelector(selectProfile);
   const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState("");
+
+  // ⭐ pagination states
+  const [page, setPage] = useState(1);
+  const [limit] = useState(5);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Update current date and time every second
   useEffect(() => {
@@ -33,19 +38,24 @@ const Review = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let data;
+        let response;
         if (searchTerm.trim()) {
           console.log("🔍 Searching ratings with:", searchTerm);
-          data = await searchRatings(searchTerm, token);
+          response = await searchRatings(searchTerm, token);
+          // search API usually doesn't have pagination
+          setTotalPages(1);
         } else {
-          data = await getRatings(token);
+          response = await getRatings(page, limit, token);
+          setTotalPages(response?.totalPages || 1);
         }
 
         // Add serial numbers dynamically
-        const formatted = (data || []).map((item, index) => ({
-          ...item,
-          SNo: index + 1,
-        }));
+        const formatted = (response?.ratings || response || []).map(
+          (item, index) => ({
+            ...item,
+            SNo: (page - 1) * limit + index + 1,
+          })
+        );
 
         setRatings(formatted);
       } catch (err) {
@@ -56,7 +66,7 @@ const Review = () => {
     };
 
     fetchData();
-  }, [token, searchTerm]);
+  }, [token, searchTerm, page, limit]);
 
   // ⭐ Render stars
   const renderStars = (rating) => {
@@ -133,7 +143,10 @@ const Review = () => {
             type="text"
             placeholder="Search by Name, Role, Serial..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1); // reset page when searching
+            }}
             className="pl-10 pr-4 h-[50px] border border-gray-300 rounded-md w-full bg-white text-sm sm:text-base"
           />
         </div>
@@ -187,6 +200,35 @@ const Review = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Pagination */}
+            <div className="flex justify-between items-center mt-6 text-sm sm:text-base">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                className={`px-4 py-2 rounded-md ${
+                  page === 1
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-yellow-400 text-white hover:bg-yellow-500"
+                }`}
+              >
+                Prev
+              </button>
+              <span className="text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                disabled={page === totalPages}
+                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                className={`px-4 py-2 rounded-md ${
+                  page === totalPages
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-yellow-400 text-white hover:bg-yellow-500"
+                }`}
+              >
+                Next
+              </button>
             </div>
           </div>
         )}

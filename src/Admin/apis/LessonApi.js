@@ -59,10 +59,11 @@ export const searchLesson = async (query, token) => {
 };
 
 // ✅ Fetch all lessons by course/module Id
-export const fetchAllLessonsById = async (id, token) => {
+// ✅ Fetch all lessons by course/module Id with pagination
+export const fetchAllLessonsById = async (id, token, page = 1, limit = 5) => {
   return await requestJson(
     "GET",
-    `/api/admin/lesson/get-allLessonsById/${id}`,
+    `/api/admin/lesson/get-allLessonsById/${id}?page=${page}&limit=${limit}`,
     null,
     {},
     token

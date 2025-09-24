@@ -58,3 +58,14 @@ export const uploadInternshipLetterApi = async ({ internshipLetterId, file, auth
     authToken
   );
 };
+// ✅ Send Global Notification
+export const sendGlobalNotificationApi = async ({ title, body, data, authToken }) => {
+  return await requestJson(
+    "POST",
+    "/api/notification/send-global-notification",
+    { title, body, data },
+    {},
+    authToken
+  );
+};
+

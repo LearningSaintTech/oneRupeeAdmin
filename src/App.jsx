@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SocketProvider } from './Admin/socket/SocketContext'; // Import SocketProvider
 import './App.css';
+import ProtectedRoutes from './Admin/Services/Protectedroutes';
 
 // Auth pages (no sidebar)
 import Login from './Admin/Components/Auth/Login';
@@ -33,25 +34,25 @@ function App() {
           {/* Public routes without sidebar */}
           <Route path="/" element={<Login />} />
           <Route path="otp" element={<Otp />} />
-          <Route path="/delete" element={<Delete/>}/>
+          <Route path="/delete" element={<Delete />} />
 
-          {/* Protected routes with sidebar */}
-          <Route element={<Layout />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="users" element={<User />} />
-            <Route path="courses" element={<Courses />} />
-            <Route path="promo" element={<Promo />} />
-            <Route path="notifications" element={<Notification />} />
-            {/* <Route path="revenue" element={<Revenue />} /> */}
-            <Route path="subcourse/:id" element={<SubCourse />} />
-            <Route path="lesson" element={<Lesson />} />
+          {/* ✅ Protected admin routes */}
+          <Route element={<ProtectedRoutes />}>
+            <Route element={<Layout />}>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="users" element={<User />} />
+              <Route path="courses" element={<Courses />} />
+              <Route path="promo" element={<Promo />} />
+              <Route path="notifications" element={<Notification />} />
+              {/* <Route path="revenue" element={<Revenue />} /> */}
+              <Route path="subcourse/:id" element={<SubCourse />} />
+              <Route path="lesson" element={<Lesson />} />
 
-            {/* Settings sub-pages */}
-            <Route path="settings/profile" element={<Profile />} />
-            <Route path="settings/reviews" element={<Review />} />
-            <Route path="settings/helpcenter" element={<HelpCenter />} />
-          
-
+              {/* Settings sub-pages */}
+              <Route path="settings/profile" element={<Profile />} />
+              <Route path="settings/reviews" element={<Review />} />
+              <Route path="settings/helpcenter" element={<HelpCenter />} />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,51 +1,24 @@
 import { requestJson } from "../Services/ApiConnector";
-
-// ✅ Get all users who purchased main courses
-export const getUsers = async (token = null) => {
-  try {
-    const response = await requestJson(
-      "GET",
-      "/api/admin/users/get-users",
-      null,
-      {},
-      token
-    );
-    console.log("✅ Users fetched successfully:", response);
-    return response;
-  } catch (error) {
-    console.error("❌ Error fetching users:", error);
-    throw error;
-  }
+// ✅ Get users with pagination (auto or manual token)
+export const getUsers = async (page = 1, limit = 10, token = null) => {
+  return await requestJson("GET", "/api/admin/users/get-users", null, { page, limit }, token);
 };
 
-// ✅ Search users by name/email/contact
+// ✅ Search users
 export const searchUsers = async (search, token = null) => {
-  try {
-    const response = await requestJson(
-      "GET",
-      "/api/admin/users/search-user",
-      null,
-      { search }, // 🔑 Query param
-      token
-    );
-    console.log("✅ Search results:", response);
-    return response;
-  } catch (error) {
-    console.error("❌ Error searching users:", error);
-    throw error;
-  }
+  return await requestJson("GET", "/api/admin/users/search-user", null, { search }, token);
 };
 
 // ✅ Export users to CSV
 export const exportUsersToCsv = async (token = null) => {
   try {
-    const API_URL = import.meta.env.VITE_API_URL; // 🔑 Use Vite env variable
+    const API_URL = import.meta.env.VITE_API_URL;
+    const authToken = token || selectToken(store.getState());
 
     const response = await fetch(`${API_URL}/api/admin/users/get-usersToCsv`, {
       method: "GET",
       headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
     });
 
@@ -54,9 +27,6 @@ export const exportUsersToCsv = async (token = null) => {
     }
 
     const blob = await response.blob();
-    console.log("✅ CSV blob fetched:", blob);
-
-    // Trigger download
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;

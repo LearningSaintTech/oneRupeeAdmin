@@ -3,20 +3,18 @@ import { FaSearch, FaBell, FaPlus } from "react-icons/fa";
 import { FiEdit, FiTrash2 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { selectToken, selectGlobalData } from "../../redux/Appstore";
+import { selectToken, selectGlobalData, selectUser } from "../../redux/Appstore";
 import { fetchAllCourses, addCourse, updateCourse, deleteCourse, searchCourses } from "../../apis/CourseApi";
 import profile from "../../../assets/images/Profile Picture (1).svg";
 import toast, { Toaster } from "react-hot-toast";
 import DatePicker from "react-datepicker";
-import { selectProfile } from "../../redux/GlobalSlice";
 import "react-datepicker/dist/react-datepicker.css";
 
 const Courses = () => {
   const navigate = useNavigate();
   const token = useSelector(selectToken);
-  const profile=useSelector(selectProfile);
+  const profileData = useSelector(selectUser);
   const globalData = useSelector(selectGlobalData);
-  console.log("🔍 Redux Global Data (including courseId):", globalData);
 
   const [courses, setCourses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,80 +22,147 @@ const Courses = () => {
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [courseName, setCourseName] = useState("");
   const [internshipPrice, setInternshipPrice] = useState("Rs 99/-");
-  const [certificateDescription, setCertificateDescription] = useState("In this course you will learn how to build a space to a 3-dimensional product...");
+  const [certificateDescription, setCertificateDescription] = useState(
+    "In this course you will learn how to build a space to a 3-dimensional product..."
+  );
   const [coverImage, setCoverImage] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const limit = 5; // Courses per page
 
+  // Update current date and time
   useEffect(() => {
     console.log("⏰ Updating current date and time...");
     const timer = setInterval(() => {
       setCurrentDateTime(new Date());
     }, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      console.log("🧹 Clearing date-time interval...");
+      clearInterval(timer);
+    };
   }, []);
 
+  // Fetch courses
   useEffect(() => {
-    console.log("📡 Fetching courses effect triggered, token:", token ? token.slice(0, 10) + "..." : "No token");
+    console.log("📡 Fetching courses effect triggered, page:", currentPage, "token:", token ? token.slice(0, 10) + "..." : "No token");
     const loadCourses = async () => {
+      setLoading(true);
       try {
-        console.log("📡 Fetching courses...");
-        let res;
-        if (selectedDate) {
-          const formattedDate = selectedDate.toISOString().split("T")[0];
-          console.log("🔍 Fetching courses for date:", formattedDate);
-          res = await fetchAllCourses(token);
-        } else {
-          console.log("🔍 Fetching all courses...");
-          res = await fetchAllCourses(token);
+        if (!token) {
+          throw new Error("No authentication token available");
         }
-        if (res?.success) {
-          console.log("✅ Courses fetched:", res.data);
-          setCourses(res.data || []);
+        console.log(`📡 Fetching courses for page ${currentPage}, limit ${limit}, selectedDate:`, selectedDate);
+        const res = await fetchAllCourses(
+          token,
+          currentPage,
+          limit,
+          selectedDate ? selectedDate.toISOString().split("T")[0] : null
+        );
+        console.log("📡 FetchAllCourses response:", res);
+        if (res?.success && res?.data?.courses && Array.isArray(res.data.courses)) {
+          setCourses(res.data.courses);
+          setTotalPages(res.data.pagination?.totalPages || 1);
           setError(null);
         } else {
-          console.log("❌ Failed to load courses, response:", res);
-          setError("Failed to load courses.");
-          toast.error("Failed to load courses.");
+          throw new Error(res?.message || "Invalid response structure from fetchAllCourses");
         }
       } catch (err) {
-        console.error("❌ Error loading courses:", err);
-        setError("An error occurred while loading courses.");
-        toast.error("An error occurred while loading courses.");
+        console.error("❌ Error loading courses:", err.message, err.stack);
+        const errorMessage = err.message.includes("token")
+          ? "Authentication error. Please log in again."
+          : err.message || "An error occurred while loading courses.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        if (err.message.includes("token")) {
+          console.log("🔄 Redirecting to login due to token error...");
+          navigate("/login");
+        }
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (token) {
-      console.log("🔑 Token available, proceeding to load courses...");
-      loadCourses();
-    } else {
-      console.log("⚠️ No authentication token available...");
-      setError("No authentication token available.");
-      toast.error("No authentication token available.");
-    }
-  }, [token, selectedDate]);
+    loadCourses();
+  }, [token, selectedDate, currentPage, navigate]);
 
+  // Search courses with debounce
   useEffect(() => {
     console.log("🔍 Search effect triggered, query:", searchQuery);
     const delayDebounce = setTimeout(async () => {
-      if (searchQuery.trim()) {
-        console.log(`🔍 Searching courses with query: "${searchQuery}"`);
-        try {
-          const res = await searchCourses(searchQuery, token);
-          console.log("✅ Search results:", res);
-          setCourses(res || []);
-        } catch (err) {
-          console.error("❌ Error searching courses:", err);
-          setError("Error occurred while searching courses.");
-          toast.error("Error occurred while searching courses.");
+      setLoading(true);
+      try {
+        if (!token) {
+          console.error("❌ No token provided for search");
+          throw new Error("No authentication token available");
         }
-      } else if (!selectedDate) {
-        console.log("🔄 Search cleared → reloading all courses...");
-        const res = await fetchAllCourses(token);
-        setCourses(res?.data || []);
+
+        if (searchQuery.trim()) {
+          console.log(`🔍 Searching courses with query: "${searchQuery}" for page ${currentPage}`);
+          const res = await searchCourses(searchQuery, token, currentPage, limit);
+          console.log("✅ Search results:", res);
+
+          // Handle both array and object response structures
+          if (Array.isArray(res)) {
+            console.log("✅ Processing direct array response:", res);
+            setCourses(res);
+            setTotalPages(1); // Assume no pagination for direct array response
+            setError(null);
+          } else if (res?.success) {
+            if (Array.isArray(res?.data)) {
+              console.log("✅ Processing object response with array data:", res.data);
+              setCourses(res.data);
+              setTotalPages(1); // Search doesn't use pagination
+              setError(null);
+            } else if (res?.data?.courses && Array.isArray(res.data.courses)) {
+              console.log("✅ Processing fetchAllCourses-like response:", res.data.courses);
+              setCourses(res.data.courses);
+              setTotalPages(res.data.pagination?.totalPages || 1);
+              setError(null);
+            } else {
+              console.error("❌ Invalid data structure in response:", res);
+              throw new Error("Invalid search response structure: data is neither an array nor contains courses");
+            }
+          } else {
+            console.error("❌ Search API returned unsuccessful response:", res);
+            throw new Error(res?.message || "Search failed. Please try again.");
+          }
+        } else {
+          console.log("🔄 Search cleared → reloading all courses...");
+          const res = await fetchAllCourses(
+            token,
+            currentPage,
+            limit,
+            selectedDate ? selectedDate.toISOString().split("T")[0] : null
+          );
+          console.log("📡 Reload all courses response:", res);
+          if (res?.success && res?.data?.courses && Array.isArray(res.data.courses)) {
+            setCourses(res.data.courses);
+            setTotalPages(res.data.pagination?.totalPages || 1);
+            setError(null);
+          } else {
+            console.error("❌ Invalid fetchAllCourses response:", res);
+            throw new Error(res?.message || "Failed to load courses.");
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error in search effect:", err.message, err.stack);
+        const errorMessage = err.message.includes("token")
+          ? "Authentication error. Please log in again."
+          : err.message || "Error occurred while searching courses.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        if (err.message.includes("token")) {
+          console.log("🔄 Redirecting to login due to token error...");
+          navigate("/login");
+        }
+      } finally {
+        setLoading(false);
       }
     }, 500);
 
@@ -105,44 +170,46 @@ const Courses = () => {
       console.log("🧹 Clearing debounce timeout...");
       clearTimeout(delayDebounce);
     };
-  }, [searchQuery, token]);
-const openModal = (course = null) => {
-  console.log("🌐 Opening modal, course:", course);
-  if (course) {
-    setCourseName(course.courseName || "");
-    setInternshipPrice(
-      course.CourseInternshipPrice !== undefined && course.CourseInternshipPrice !== null
-        ? `Rs ${course.CourseInternshipPrice}/-`
-        : "Rs /-"
-    );
-    setCertificateDescription(
-      course.certificateDescription ||
-      "In this course you will learn how to build a space to a 3-dimensional product..."
-    );
-    setCoverImage(course.CoverImageUrl || null);
-    setSelectedCourseId(course._id);
-    console.log("🔧 Editing course, selectedCourseId:", course._id);
-  } else {
-    setCourseName("");
-    setInternshipPrice("Rs 99/-");
-    setCertificateDescription(
-      "In this course you will learn how to build a space to a 3-dimensional product..."
-    );
-    setCoverImage(null);
-    setSelectedCourseId(null);
-    console.log("➕ Adding new course, selectedCourseId cleared...");
-  }
-  setIsModalOpen(true);
-  setError(null);
-};
+  }, [searchQuery, token, currentPage, selectedDate, navigate]);
 
+  const openModal = (course = null) => {
+    console.log("🌐 Opening modal, course:", course);
+    if (course) {
+      setCourseName(course.courseName || "");
+      setInternshipPrice(
+        course.CourseInternshipPrice !== undefined && course.CourseInternshipPrice !== null
+          ? `Rs ${course.CourseInternshipPrice}/-`
+          : "Rs 99/-"
+      );
+      setCertificateDescription(
+        course.certificateDescription ||
+        "In this course you will learn how to build a space to a 3-dimensional product..."
+      );
+      setCoverImage(course.CoverImageUrl || null);
+      setSelectedCourseId(course._id);
+      console.log("🔧 Editing course, selectedCourseId:", course._id);
+    } else {
+      setCourseName("");
+      setInternshipPrice("Rs 99/-");
+      setCertificateDescription(
+        "In this course you will learn how to build a space to a 3-dimensional product..."
+      );
+      setCoverImage(null);
+      setSelectedCourseId(null);
+      console.log("➕ Adding new course, selectedCourseId cleared...");
+    }
+    setIsModalOpen(true);
+    setError(null);
+  };
 
   const closeModal = () => {
     console.log("❌ Closing modal...");
     setIsModalOpen(false);
     setCourseName("");
     setInternshipPrice("Rs 99/-");
-    setCertificateDescription("In this course you will learn how to build a space to a 3-dimensional product...");
+    setCertificateDescription(
+      "In this course you will learn how to build a space to a 3-dimensional product..."
+    );
     setCoverImage(null);
     setSelectedCourseId(null);
     setError(null);
@@ -161,13 +228,12 @@ const openModal = (course = null) => {
   };
 
   const handleRowClick = (course) => {
-  console.log("➡️ Navigating to subcourse with courseId:", course._id);
-  navigate(`/subcourse/${course._id}`, {
-    state: { courseId: course._id },
-  });
-  setError(null);
-};
-
+    console.log("➡️ Navigating to subcourse with courseId:", course._id);
+    navigate(`/subcourse/${course._id}`, {
+      state: { courseId: course._id },
+    });
+    setError(null);
+  };
 
   const handleEdit = (course) => {
     console.log("✏️ Editing course:", course);
@@ -178,25 +244,50 @@ const openModal = (course = null) => {
     if (!courseToDelete) return;
 
     console.log("🗑 Deleting course:", courseToDelete);
+    setLoading(true);
     try {
       const res = await deleteCourse(courseToDelete._id, token);
+      console.log("📡 Delete course response:", res);
       if (res?.success) {
         console.log("✅ Deleted:", courseToDelete._id);
         setCourses(courses.filter((c) => c._id !== courseToDelete._id));
         toast.success(`"${courseToDelete.courseName}" deleted successfully.`);
         setError(null);
+        if (courses.length === 1 && currentPage > 1) {
+          console.log("🔄 Last course on page deleted, navigating to previous page:", currentPage - 1);
+          setCurrentPage(currentPage - 1);
+        } else {
+          console.log("🔄 Refreshing courses after delete...");
+          const fetchRes = await fetchAllCourses(
+            token,
+            currentPage,
+            limit,
+            selectedDate ? selectedDate.toISOString().split("T")[0] : null
+          );
+          console.log("📡 Refresh courses response:", fetchRes);
+          setCourses(fetchRes?.data?.courses || []);
+          setTotalPages(fetchRes?.data?.pagination?.totalPages || 1);
+        }
       } else {
         console.log("❌ Failed to delete course, response:", res);
-        setError("Failed to delete course.");
-        toast.error("Failed to delete course.");
+        setError(res?.message || "Failed to delete course.");
+        toast.error(res?.message || "Failed to delete course.");
       }
     } catch (err) {
       console.error("❌ Error deleting course:", err);
-      setError("An error occurred while deleting the course.");
-      toast.error("An error occurred while deleting the course.");
+      const errorMessage = err.message.includes("token")
+        ? "Authentication error. Please log in again."
+        : err.message || "An error occurred while deleting the course.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      if (err.message.includes("token")) {
+        console.log("🔄 Redirecting to login due to token error...");
+        navigate("/login");
+      }
     } finally {
       console.log("🧹 Cleanup after delete operation...");
       closeDeleteModal();
+      setLoading(false);
     }
   };
 
@@ -211,7 +302,10 @@ const openModal = (course = null) => {
 
     const formData = new FormData();
     formData.append("courseName", courseName);
-    formData.append("CourseInternshipPrice", parseInt(internshipPrice.replace("Rs ", "").replace("/-", "")) || 99);
+    formData.append(
+      "CourseInternshipPrice",
+      parseInt(internshipPrice.replace("Rs ", "").replace("/-", "")) || 99
+    );
     if (certificateDescription) {
       formData.append("certificateDescription", certificateDescription);
     }
@@ -221,6 +315,7 @@ const openModal = (course = null) => {
       formData.append("coverImage", coverImage);
     }
 
+    setLoading(true);
     try {
       let res;
       if (selectedCourseId) {
@@ -236,6 +331,7 @@ const openModal = (course = null) => {
         console.log("➕ Adding new course...");
         res = await addCourse(formData, token);
       }
+      console.log("📡 Save course response:", res);
 
       if (res?.success) {
         console.log("✅ Save successful, response:", res.data);
@@ -246,16 +342,73 @@ const openModal = (course = null) => {
         closeModal();
         toast.success(`Course ${selectedCourseId ? "updated" : "added"} successfully.`);
         setError(null);
+        console.log("🔄 Refreshing courses after save...");
+        const fetchRes = await fetchAllCourses(
+          token,
+          currentPage,
+          limit,
+          selectedDate ? selectedDate.toISOString().split("T")[0] : null
+        );
+        console.log("📡 Refresh courses response:", fetchRes);
+        setCourses(fetchRes?.data?.courses || []);
+        setTotalPages(fetchRes?.data?.pagination?.totalPages || 1);
       } else {
         console.log("❌ Failed to save course, full response:", res);
-        setError("Failed to save course. Check server response.");
-        toast.error("Failed to save course.");
+        setError(res?.message || "Failed to save course.");
+        toast.error(res?.message || "Failed to save course.");
       }
     } catch (err) {
       console.error("❌ Error saving course:", err);
-      setError("An error occurred while saving the course.");
-      toast.error("An error occurred while saving the course.");
+      const errorMessage = err.message.includes("token")
+        ? "Authentication error. Please log in again."
+        : err.message || "An error occurred while saving the course.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      if (err.message.includes("token")) {
+        console.log("🔄 Redirecting to login due to token error...");
+        navigate("/login");
+      }
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      console.log("⬅️ Navigating to previous page:", currentPage - 1);
+      setCurrentPage(currentPage - 1);
+    } else {
+      console.log("⚠️ Already on first page, cannot go previous.");
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      console.log("➡️ Navigating to next page:", currentPage + 1);
+      setCurrentPage(currentPage + 1);
+    } else {
+      console.log("⚠️ Already on last page, cannot go next.");
+    }
+  };
+
+  const renderPageNumbers = () => {
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(
+        <button
+          key={i}
+          onClick={() => setCurrentPage(i)}
+          className={`px-3 py-1 rounded-md text-sm ${
+            currentPage === i
+              ? "bg-gradient-to-r from-[#F6B800] to-[#FF8800] text-white"
+              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          }`}
+        >
+          {i}
+        </button>
+      );
+    }
+    return pages;
   };
 
   return (
@@ -276,14 +429,12 @@ const openModal = (course = null) => {
               timeZone: "Asia/Kolkata",
             })}
           </span>
-         
-          {/* <FaBell className="text-gray-500 text-lg cursor-pointer" /> */}
-          <FaBell 
-            className="w-6 h-6 text-gray-500 cursor-pointer" 
-            onClick={() => navigate("/notifications")} 
+          <FaBell
+            className="w-6 h-6 text-gray-500 cursor-pointer"
+            onClick={() => navigate("/notifications")}
           />
           <img
-            src={profile?.profileImageUrl || profile}
+            src={profileData?.profileImageUrl || profile}
             alt="profile"
             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
           />
@@ -302,6 +453,7 @@ const openModal = (course = null) => {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+       
         <button
           onClick={() => openModal()}
           className="bg-gradient-to-r from-[#003E54] to-[#0090B2] text-white px-4 py-2 rounded-md flex items-center gap-2 whitespace-nowrap h-[50px] text-sm sm:text-base"
@@ -317,6 +469,13 @@ const openModal = (course = null) => {
         </div>
       )}
 
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="text-center py-4 text-gray-500 text-sm sm:text-base">
+          Loading courses...
+        </div>
+      )}
+
       {/* Table */}
       <div>
         <h2 className="text-lg sm:text-xl font-medium mb-3">Courses</h2>
@@ -324,19 +483,33 @@ const openModal = (course = null) => {
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">S.N.</th>
-                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">Course Name</th>
-                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">Thumbnail</th>
-                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">Delete/Edit</th>
+                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                  S.N.
+                </th>
+                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                  Course Name
+                </th>
+                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                  Thumbnail
+                </th>
+                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                  Delete/Edit
+                </th>
               </tr>
             </thead>
             <tbody>
-              {courses.map((course, index) => (
+              {courses.map((course) => (
                 <tr key={course._id} className="hover:bg-gray-50 transition cursor-pointer">
-                  <td className="py-3 px-4 text-center text-sm sm:text-base" onClick={() => handleRowClick(course)}>
-                    {index + 1}
+                  <td
+                    className="py-3 px-4 text-center text-sm sm:text-base"
+                    onClick={() => handleRowClick(course)}
+                  >
+                    {course.SNo}
                   </td>
-                  <td className="py-3 px-4 text-center text-sm sm:text-base" onClick={() => handleRowClick(course)}>
+                  <td
+                    className="py-3 px-4 text-center text-sm sm:text-base"
+                    onClick={() => handleRowClick(course)}
+                  >
                     {course.courseName}
                   </td>
                   <td className="py-3 px-4 text-center" onClick={() => handleRowClick(course)}>
@@ -364,7 +537,7 @@ const openModal = (course = null) => {
                   </td>
                 </tr>
               ))}
-              {courses.length === 0 && (
+              {courses.length === 0 && !loading && (
                 <tr>
                   <td colSpan="4" className="text-center py-4 text-gray-500 text-sm sm:text-base">
                     No courses found.
@@ -374,6 +547,33 @@ const openModal = (course = null) => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="flex justify-between items-center mt-4">
+          <button
+            onClick={handlePreviousPage}
+            disabled={currentPage === 1 || loading}
+            className={`px-4 py-2 rounded-md text-sm sm:text-base ${
+              currentPage === 1 || loading
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-[#F6B800] to-[#FF8800] text-white hover:from-orange-600 hover:to-red-600"
+            }`}
+          >
+            Previous
+          </button>
+          <div className="flex gap-2">{renderPageNumbers()}</div>
+          <button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages || loading}
+            className={`px-4 py-2 rounded-md text-sm sm:text-base ${
+              currentPage === totalPages || loading
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-[#F6B800] to-[#FF8800] text-white hover:from-orange-600 hover:to-red-600"
+            }`}
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {/* Add/Edit Course Modal */}
@@ -381,7 +581,9 @@ const openModal = (course = null) => {
         <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto">
           <div className="bg-white w-full max-w-[90%] sm:max-w-[500px] lg:max-w-[600px] xl:max-w-[700px] rounded-lg shadow-xl p-4 sm:p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 sm:mb-5 sticky top-0 bg-white z-10 py-2">
-              <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">{selectedCourseId ? "Edit Course" : "Add Course"}</h2>
+              <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">
+                {selectedCourseId ? "Edit Course" : "Add Course"}
+              </h2>
               <button
                 onClick={closeModal}
                 className="text-gray-500 hover:text-gray-700 text-lg sm:text-xl leading-none"
@@ -396,42 +598,65 @@ const openModal = (course = null) => {
               <label className="block w-full border-2 border-gray-300 border-dashed rounded-lg h-36 sm:h-40 lg:h-44 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:border-gray-400 transition-colors">
                 {coverImage ? (
                   <div className="text-center w-full h-full">
-                    <img 
-                      src={typeof coverImage === "string" ? coverImage : URL.createObjectURL(coverImage)} 
-                      alt="Preview" 
+                    <img
+                      src={typeof coverImage === "string" ? coverImage : URL.createObjectURL(coverImage)}
+                      alt="Preview"
                       className="w-full h-full object-cover rounded-lg"
                     />
                   </div>
                 ) : (
                   <>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-200 rounded-lg flex items-center justify-center mb-2 sm:mb-3">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
                       </svg>
                     </div>
-                    <span className="text-xs sm:text-sm font-medium tracking-wider text-gray-500">CHOOSE FILE</span>
+                    <span className="text-xs sm:text-sm font-medium tracking-wider text-gray-500">
+                      CHOOSE FILE
+                    </span>
                   </>
                 )}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => setCoverImage(e.target.files[0])} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setCoverImage(e.target.files[0])}
+                />
               </label>
-              <p className="text-xs text-gray-600 mt-2 text-center">The image dimension should be (456 × 216)px</p>
+              <p className="text-xs text-gray-600 mt-2 text-center">
+                The image dimension should be (456 × 216)px
+              </p>
             </div>
 
             {/* Course Name */}
             <div className="mb-4 sm:mb-5">
-              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">Course Name</label>
+              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">
+                Course Name
+              </label>
               <input
                 type="text"
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter category name"
+                placeholder="Enter course name"
               />
             </div>
 
             {/* Internship Price */}
             <div className="mb-4 sm:mb-5">
-              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">Internship Price</label>
+              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">
+                Internship Price
+              </label>
               <input
                 type="text"
                 value={internshipPrice}
@@ -443,7 +668,9 @@ const openModal = (course = null) => {
 
             {/* Certificate Description */}
             <div className="mb-5 sm:mb-6">
-              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">Certificate Description</label>
+              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">
+                Certificate Description
+              </label>
               <div className="relative">
                 <textarea
                   value={certificateDescription}
@@ -452,7 +679,11 @@ const openModal = (course = null) => {
                   rows="3"
                   placeholder="In this course you will learn how to build a space to a 3-dimensional product..."
                 />
-                <button className="absolute right-3 top-3 text-orange-500 hover:text-orange-600" type="button" aria-label="edit">
+                <button
+                  className="absolute right-3 top-3 text-orange-500 hover:text-orange-600"
+                  type="button"
+                  aria-label="edit"
+                >
                   <FiEdit className="w-3 h-3 sm:w-4 sm:h-4" />
                 </button>
               </div>
@@ -463,18 +694,19 @@ const openModal = (course = null) => {
               <button
                 onClick={handleSaveCourse}
                 className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 sm:px-6 py-2 rounded-lg font-semibold hover:from-orange-600 hover:to-red-600 transition-all duration-200 shadow-lg text-xs sm:text-sm"
-                disabled={!courseName || (!coverImage && !selectedCourseId)}
+                disabled={loading || !courseName || (!coverImage && !selectedCourseId)}
               >
-                Save
+                {loading ? "Saving..." : "Save"}
               </button>
             </div>
- {error && (
+            {error && (
               <div className="mt-4 p-2 bg-red-100 text-red-700 rounded-lg text-xs">{error}</div>
             )}
           </div>
         </div>
       )}
-  {/* Delete Confirmation Modal */}
+
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-[90%] sm:max-w-[400px] rounded-xl shadow-xl p-4 sm:p-6">
@@ -486,14 +718,16 @@ const openModal = (course = null) => {
               <button
                 onClick={closeDeleteModal}
                 className="bg-gray-200 text-gray-700 px-4 sm:px-6 py-2 rounded-lg hover:bg-gray-300 text-xs sm:text-sm"
+                disabled={loading}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 className="bg-red-500 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-red-600 text-xs sm:text-sm"
+                disabled={loading}
               >
-                Delete
+                {loading ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
@@ -502,4 +736,5 @@ const openModal = (course = null) => {
     </div>
   );
 };
+
 export default Courses;

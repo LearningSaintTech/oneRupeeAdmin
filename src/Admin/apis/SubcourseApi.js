@@ -1,26 +1,34 @@
 // src/apis/SubCourseApi.js
 import { requestJson, requestFormData } from "../../Admin/Services/ApiConnector";
 
-// ✅ Fetch all subcourses
-export const fetchAllSubCourses = async (token) => {
-  return await requestJson(
-    "GET",
-    "/api/admin/subcourse/get-all-subcourses",
-    null,
-    {},
-    token
-  );
+/**
+ * ✅ Fetch all subcourses with pagination
+ */
+export const fetchAllSubCourses = async (page = 1, limit = 8) => {
+  try {
+    const response = await requestJson(
+      "GET",
+      "/api/admin/subcourse/get-all-subcourses",
+      null,
+      { page, limit } // dynamic pagination params
+    );
+    console.log("✅ Subcourses fetched:", response);
+    return response;
+  } catch (error) {
+    console.error("❌ Error fetching subcourses:", error);
+    throw error;
+  }
 };
 
-// ✅ Add a subcourse
-export const addSubCourse = async (formData, token) => {
+/**
+ * ✅ Add a new subcourse (multipart/form-data)
+ */
+export const addSubCourse = async (formData) => {
   try {
     const response = await requestFormData(
       "POST",
       "/api/admin/subcourse/add-subcourse",
-      formData,
-      {}, // query params if any
-      token
+      formData
     );
     console.log("✅ Subcourse added:", response);
     return response;
@@ -30,52 +38,75 @@ export const addSubCourse = async (formData, token) => {
   }
 };
 
-// ✅ Update a subcourse
-export const updateSubCourse = async (subCourseId, formData, token) => {
-  return await requestFormData(
-    "PUT",
-    `/api/admin/subcourse/update-subcourse/${subCourseId}`,
-    formData,
-    {},
-    token
-  );
-};
-
-// ✅ Delete a subcourse
-export const deleteSubCourse = async (subCourseId, token) => {
-  return await requestJson(
-    "DELETE",
-    `/api/admin/subcourse/delete-subcourse/${subCourseId}`,
-    null,
-    {},
-    token
-  );
-};
-
-// ✅ Search subcourses
-export const searchSubCourse = async (query, token) => {
-  return await requestJson(
-    "GET",
-    `/api/admin/subcourse/search-subcourse`,
-    null,
-    { q: query }, // query parameter
-    token
-  );
-};
-
-export const fetchSubCoursesByCourseId = async (courseId, token) => {
+/**
+ * ✅ Update an existing subcourse
+ */
+export const updateSubCourse = async (subCourseId, formData) => {
   try {
-    const res = await requestJson(
-      "GET",
-      `/api/admin/subcourse/get-subCoursesById/${courseId}`,
-      null,   // body
-      {},     // query params
-      token
+    const response = await requestFormData(
+      "PUT",
+      `/api/admin/subcourse/update-subcourse/${subCourseId}`,
+      formData
     );
-    return res;
+    console.log("✅ Subcourse updated:", response);
+    return response;
   } catch (error) {
-    console.error("❌ Error fetching subcourses:", error);
-    return null;
+    console.error("❌ Error updating subcourse:", error);
+    throw error;
   }
 };
 
+/**
+ * ✅ Delete a subcourse
+ */
+export const deleteSubCourse = async (subCourseId) => {
+  try {
+    const response = await requestJson(
+      "DELETE",
+      `/api/admin/subcourse/delete-subcourse/${subCourseId}`
+    );
+    console.log("✅ Subcourse deleted:", response);
+    return response;
+  } catch (error) {
+    console.error("❌ Error deleting subcourse:", error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Search subcourses
+ */
+export const searchSubCourse = async (query) => {
+  try {
+    const response = await requestJson(
+      "GET",
+      "/api/admin/subcourse/search-subcourse",
+      null,
+      { q: query } // query parameter
+    );
+    console.log("✅ Subcourse search result:", response);
+    return response;
+  } catch (error) {
+    console.error("❌ Error searching subcourse:", error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Fetch subcourses by courseId
+ */
+export const fetchSubCoursesByCourseId = async (courseId, page = 1, limit = 10) => {
+  try {
+    const response = await requestJson(
+      "GET",
+      `/api/admin/subcourse/get-subCoursesById/${courseId}`,
+      null,
+      { page, limit } // pagination params
+    );
+    console.log("Subcourses by courseId:", response);
+    return response;
+  } catch (error) {
+    console.error("Error fetching subcourses by courseId:", error);
+    throw error;
+  }
+};

@@ -1,17 +1,19 @@
+import { store } from "../redux/Appstore"; // Your Redux store
+import { selectToken } from "../redux/Appstore"; // Selector for token
+
 const API_BASE_URL = "https://main.learningsaint.com";
+//  const API_BASE_URL = "http://localhost:3000";
+
 
 /**
- * JSON-based API request handler with auto-token and enhanced error handling
+ * JSON-based API request handler using Redux token automatically
  */
-export const requestJson = async (
-  method,
-  endpoint,
-  data = null,
-  queryParams = {},
-  token = null
-) => {
-  // ✅ Auto-use token from parameter or localStorage
-  const authToken = token || localStorage.getItem("token");
+export const requestJson = async (method, endpoint, data = null, queryParams = {}) => {
+  // ✅ Get token from Redux store
+  const authToken = selectToken(store.getState());
+  // const authToken = selectToken(store.getState());
+console.log("Redux token inside requestJson:", authToken);
+
 
   console.log("requestJson called with:", {
     method,
@@ -61,7 +63,6 @@ export const requestJson = async (
     const json = await response.json();
 
     if (!response.ok) {
-      // ✅ Handle 401 separately
       if (response.status === 401) {
         throw new Error("Unauthorized: Token may be missing or expired");
       }
@@ -76,16 +77,11 @@ export const requestJson = async (
 };
 
 /**
- * Multipart/form-data request handler with auto-token
+ * Multipart/form-data request handler using Redux token automatically
  */
-export const requestFormData = async (
-  method,
-  endpoint,
-  data,
-  config = {},
-  token = null
-) => {
-  const authToken = token || localStorage.getItem("token");
+export const requestFormData = async (method, endpoint, data, config = {}) => {
+  // ✅ Get token from Redux store
+  const authToken = selectToken(store.getState());
 
   console.log("requestFormData called with:", {
     method,

@@ -6,7 +6,9 @@ import profileImg from '../../../assets/images/Profile Picture (1).svg';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { SocketContext } from '../../socket/SocketContext';
-import { getNotificationsApi, uploadInternshipLetterApi, markNotificationReadApi,getUnreadNotificationCountApi} from '../../apis/NotificationApi';
+import { getNotificationsApi, uploadInternshipLetterApi, markNotificationReadApi, getUnreadNotificationCountApi, sendGlobalNotificationApi } from '../../apis/NotificationApi';
+import { ToastContainer, toast } from 'react-toastify'; // Added toast imports
+import 'react-toastify/dist/ReactToastify.css'; // Added toast CSS
 
 const Notification = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,12 +19,15 @@ const Notification = () => {
   const [internshipRequests, setInternshipRequests] = useState([]);
   const [uploadedLetters, setUploadedLetters] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-
   const [showNewNotificationBanner, setShowNewNotificationBanner] = useState(false);
   const [lastNotification, setLastNotification] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedNotificationId, setSelectedNotificationId] = useState(null);
   const [selectedInternshipLetterId, setSelectedInternshipLetterId] = useState(null);
+  const [globalTitle, setGlobalTitle] = useState('');
+  const [globalBody, setGlobalBody] = useState('');
+  const [globalData, setGlobalData] = useState('');
+
   const profile = useSelector(selectProfile);
   const token = useSelector(selectToken);
   const { socket } = useContext(SocketContext);
@@ -52,7 +57,7 @@ const Notification = () => {
       } catch (err) {
         console.error(`❌ [Notification] Error fetching notifications:`, err.message, `Timestamp: ${new Date().toISOString()}`);
         setDbNotifications([]);
-        alert('Failed to fetch notifications. Please try again later.');
+        toast.error('Failed to fetch notifications. Please try again later.');
       }
     };
     if (token) {
@@ -140,7 +145,7 @@ const Notification = () => {
 
       socket.on('test_event', (data) => {
         console.log(`🧪 [Notification] Received test_event:`, data, `Timestamp: ${new Date().toISOString()}`);
-        alert(`✅ WebSocket test successful! Received: ${data.message}`);
+        toast.info(`✅ WebSocket test successful! Received: ${data.message}`);
       });
 
       socket.on('connect', () => {
@@ -226,21 +231,20 @@ const Notification = () => {
   }, [selectedDate]);
 
   useEffect(() => {
-  const fetchUnreadCount = async () => {
-    if (!token) return;
-    try {
-      const res = await getUnreadNotificationCountApi(token);
-      if (res.success) {
-        setUnreadCount(res.data.count || 0);
+    const fetchUnreadCount = async () => {
+      if (!token) return;
+      try {
+        const res = await getUnreadNotificationCountApi(token);
+        if (res.success) {
+          setUnreadCount(res.data.count || 0);
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch unread count:", err.message);
       }
-    } catch (err) {
-      console.error("❌ Failed to fetch unread count:", err.message);
-    }
-  };
+    };
 
-  fetchUnreadCount();
-}, [token, dbNotifications]); // dbNotifications change hote hi bhi update ho
-
+    fetchUnreadCount();
+  }, [token, dbNotifications]);
 
   // Demo reminders
   const liveClassReminders = [
@@ -270,7 +274,7 @@ const Notification = () => {
   const handleFileUpload = async () => {
     if (!selectedFile || !selectedInternshipLetterId || !token) {
       console.error(`⚠️ [Notification] Missing required data for upload - File: ${selectedFile}, InternshipLetterId: ${selectedInternshipLetterId}, Token: ${token}, Timestamp: ${new Date().toISOString()}`);
-      alert('Please select a file and ensure an internship letter is selected.');
+      toast.error('Please select a file and ensure an internship letter is selected.');
       return;
     }
 
@@ -290,14 +294,13 @@ const Notification = () => {
           fileName: selectedFile.name,
           fileUrl: res.data,
           courseName: dbNotifications.find(n => n._id === selectedNotificationId)?.data?.courseId || 'Unknown',
-          userName: 'Unknown', // Update if API provides userName
+          userName: 'Unknown',
           uploadedAt: new Date().toISOString(),
         }]);
         
-        alert(`✅ File uploaded successfully!\nLink: ${res.data}`);
+        toast.success(`✅ File uploaded successfully!\nLink: ${res.data}`);
         console.log(`💾 [Notification] Updated uploadedLetters:`, uploadedLetters, `Timestamp: ${new Date().toISOString()}`);
 
-        // Mark notification as read
         if (selectedNotificationId) {
           console.log(`📌 [Notification] Marking notification as read, NotificationId: ${selectedNotificationId}, Timestamp: ${new Date().toISOString()}`);
           const readRes = await markNotificationReadApi({
@@ -316,6 +319,7 @@ const Notification = () => {
             console.log(`💾 [Notification] Updated dbNotifications with read status:`, dbNotifications, `Timestamp: ${new Date().toISOString()}`);
           } else {
             console.error(`❌ [Notification] Failed to mark notification as read, Response:`, readRes, `Timestamp: ${new Date().toISOString()}`);
+            toast.error('Failed to mark notification as read.');
           }
         }
 
@@ -326,11 +330,11 @@ const Notification = () => {
         console.log(`💾 [Notification] Reset modal state, isModalOpen: false, selectedFile: null, selectedNotificationId: null, selectedInternshipLetterId: null, Timestamp: ${new Date().toISOString()}`);
       } else {
         console.error(`❌ [Notification] Upload failed, Response:`, res, `Timestamp: ${new Date().toISOString()}`);
-        alert('Failed to upload file. Please try again.');
+        toast.error('Failed to upload file. Please try again.');
       }
     } catch (err) {
       console.error(`❌ [Notification] Error uploading file:`, err.message, `Timestamp: ${new Date().toISOString()}`);
-      // alert('Error uploading file. Please try again.');
+      toast.error('Error uploading file. Please try again.');
     }
   };
 
@@ -338,8 +342,7 @@ const Notification = () => {
   const handleMarkAsRead = async (notificationId) => {
     console.log(`📌 [Notification] Marking notification as read, NotificationId: ${notificationId}, Timestamp: ${new Date().toISOString()}`);
     try {
-      const res = await markNotificationReadApi(token)
-      
+      const res = await markNotificationReadApi({ notificationId, authToken: token });
       console.log(`📩 [Notification] Mark read API Response:`, res, `Timestamp: ${new Date().toISOString()}`);
       if (res.success) {
         console.log(`✅ [Notification] Notification marked as read, NotificationId: ${notificationId}, Timestamp: ${new Date().toISOString()}`);
@@ -351,11 +354,11 @@ const Notification = () => {
         console.log(`💾 [Notification] Updated dbNotifications with read status:`, dbNotifications, `Timestamp: ${new Date().toISOString()}`);
       } else {
         console.error(`❌ [Notification] Failed to mark notification as read, Response:`, res, `Timestamp: ${new Date().toISOString()}`);
-        alert('Failed to mark notification as read. Please try again.');
+        toast.error('Failed to mark notification as read. Please try again.');
       }
     } catch (err) {
       console.error(`❌ [Notification] Error marking notification as read:`, err.message, `Timestamp: ${new Date().toISOString()}`);
-      alert('Error marking notification as read. Please try again.');
+      toast.error('Error marking notification as read. Please try again.');
     }
   };
 
@@ -399,6 +402,34 @@ const Notification = () => {
     console.log(`💾 [Notification] Updated isModalOpen: false, selectedFile: null, selectedNotificationId: null, selectedInternshipLetterId: null, Timestamp: ${new Date().toISOString()}`);
   };
 
+  // Handle send global notification
+  const handleSendGlobalNotification = async () => {
+    if (!globalTitle || !globalBody) {
+      toast.error('Please provide both title and body for the notification.');
+      return;
+    }
+    try {
+      const payload = {
+        title: globalTitle,
+        body: globalBody,
+        data: globalData ? { customData: { message: globalData } } : {},
+        authToken: token,
+      };
+
+      console.log(`📬 [Notification] Sending global notification, Payload:`, payload, `Timestamp: ${new Date().toISOString()}`);
+      const res = await sendGlobalNotificationApi(payload);
+      console.log(`✅ [Notification] Global notification sent:`, res, `Timestamp: ${new Date().toISOString()}`);
+
+      toast.success(res.message || 'Global notification sent successfully!');
+      setGlobalTitle('');
+      setGlobalBody('');
+      setGlobalData('');
+    } catch (err) {
+      console.error(`❌ [Notification] Error sending global notification:`, err.message, `Timestamp: ${new Date().toISOString()}`);
+      toast.error('Failed to send global notification. Please try again.');
+    }
+  };
+
   console.log(`📺 [Notification] Rendering component, State:`, {
     isModalOpen,
     selectedDate,
@@ -409,10 +440,13 @@ const Notification = () => {
     selectedFile: selectedFile?.name,
     selectedNotificationId,
     selectedInternshipLetterId,
+    globalTitle,
+    globalBody,
+    globalData,
   }, `Timestamp: ${new Date().toISOString()}`);
 
   return (
-    <div className="p-6 bg-white min-h-screen">
+    <div className="p-6 bg-gray-100 min-h-screen">
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-10px); }
@@ -424,7 +458,17 @@ const Notification = () => {
         .animate-pulse {
           animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1);
         }
+        .notification-box {
+          border-left: 4px solid #f97316; /* Orange border */
+          background-color: #f9fafb; /* Light gray background */
+          border-radius: 8px;
+          padding: 1rem;
+        }
       `}</style>
+
+      {/* Toast Container */}
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} closeOnClick pauseOnHover />
+
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Notification</h1>
@@ -448,32 +492,32 @@ const Notification = () => {
               onChange={(e) => console.log(`🔎 [Notification] Search input: ${e.target.value}, Timestamp: ${new Date().toISOString()}`)}
             />
           </div>
-        <div className="relative">
-  <FaBell
-    className="text-gray-600 text-xl cursor-pointer"
-    onClick={() => {
-      console.log(`🔔 [Notification] Bell icon clicked, Timestamp: ${new Date().toISOString()}`);
-      alert('🔔 Notifications panel clicked');
-    }}
-  />
-  {unreadCount > 0 && (
-    <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-      {unreadCount}
-    </span>
-  )}
-</div>
-
+          <div className="relative">
+            <FaBell
+              className="text-gray-600 text-xl cursor-pointer"
+              onClick={() => {
+                console.log(`🔔 [Notification] Bell icon clicked, Timestamp: ${new Date().toISOString()}`);
+                toast.info('🔔 Notifications panel clicked');
+              }}
+            />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </div>
           <img
             src={profile?.profileImageUrl || profileImg}
             alt="profile"
             className="w-10 h-10 rounded-full object-cover"
             onClick={() => {
               console.log(`👤 [Notification] Profile clicked, Timestamp: ${new Date().toISOString()}`);
-              alert('👤 Profile clicked');
+              toast.info('👤 Profile clicked');
             }}
           />
         </div>
       </div>
+
       {/* 🔔 New Notification Banner */}
       {showNewNotificationBanner && lastNotification && (
         <div className="mb-6 p-4 bg-green-100 border-l-4 border-green-500 rounded-lg animate-fade-in">
@@ -502,17 +546,51 @@ const Notification = () => {
           </div>
         </div>
       )}
+
       {/* 📩 Stored Notifications from Backend */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Notifications</h2>
+      <div className="mb-8 bg-white p-4 rounded-lg shadow">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Send Global Notification</h2>
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Notification Title"
+            value={globalTitle}
+            onChange={(e) => setGlobalTitle(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+          <textarea
+            placeholder="Notification Body"
+            value={globalBody}
+            onChange={(e) => setGlobalBody(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+            rows="4"
+          />
+          <input
+            type="text"
+            placeholder="Additional Data (optional)"
+            value={globalData}
+            onChange={(e) => setGlobalData(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+          <button
+            onClick={handleSendGlobalNotification}
+            className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-4 py-2 rounded hover:from-orange-600 hover:to-yellow-600 transition flex items-center gap-2"
+            disabled={!globalTitle || !globalBody}
+          >
+            <FaBell className="text-white" />
+            Send Global Notification
+          </button>
+        </div>
+
+        <h2 className="text-xl font-semibold text-gray-800 mt-8 mb-4">Received Notifications</h2>
         {dbNotifications.length === 0 ? (
-          <p className="text-gray-500">No notifications found</p>
+          <p className="text-gray-500 mt-4">No notifications found</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 mt-4">
             {dbNotifications.map((n, idx) => (
               <div
                 key={idx}
-                className="bg-gray-50 rounded-lg p-6 relative border-l-4 border-orange-500"
+                className="notification-box relative"
               >
                 <button
                   className="absolute top-4 left-4 bg-blue-400 hover:bg-blue-500 w-6 h-6 rounded flex items-center justify-center transition"
@@ -548,7 +626,8 @@ const Notification = () => {
           </div>
         )}
       </div>
-      {/* 📄 Internship Requests */}
+
+      {/* 📤 Internship Requests */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">
           Internship Letter Requests 
@@ -610,6 +689,7 @@ const Notification = () => {
           </div>
         )}
       </div>
+
       {/* 📤 Uploaded Internship Letters */}
       <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Uploaded Internship Letters</h2>
@@ -642,8 +722,9 @@ const Notification = () => {
           </div>
         )}
       </div>
+
       {/* 📤 Upload Modal */}
-  {isModalOpen && (
+      {isModalOpen && (
         <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 w-96 relative">
             <button
@@ -691,4 +772,5 @@ const Notification = () => {
     </div>
   );
 };
+
 export default Notification;
