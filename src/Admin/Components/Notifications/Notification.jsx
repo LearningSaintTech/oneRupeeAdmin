@@ -484,13 +484,7 @@ const Notification = () => {
             })}
           </span>
           <div className="relative">
-            <FaSearch className="absolute left-3 top-3 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search"
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-64 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              onChange={(e) => console.log(`🔎 [Notification] Search input: ${e.target.value}, Timestamp: ${new Date().toISOString()}`)}
-            />
+            
           </div>
           <div className="relative">
             <FaBell

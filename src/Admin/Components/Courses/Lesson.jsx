@@ -66,24 +66,6 @@ const Lessons = () => {
     }
   };
 
-  const convertTo24Hour = (time12) => {
-    if (!time12) {
-      console.warn("convertTo24Hour: No time provided, returning default '10:00'");
-      return "10:00";
-    }
-    try {
-      const [time, period] = time12.split(" ");
-      let [hours, minutes] = time.split(":");
-      hours = parseInt(hours, 10);
-      if (period === "PM" && hours !== 12) hours += 12;
-      if (period === "AM" && hours === 12) hours = 0;
-      return `${hours.toString().padStart(2, "0")}:${minutes}`;
-    } catch (error) {
-      console.error("convertTo24Hour: Error parsing time:", time12, error);
-      return "10:00";
-    }
-  };
-
   const validateFormData = (formData) => {
     if (!formData.lessonName) return "Lesson name is required";
     if (!formData.lessonDescription) return "Lesson description is required";
@@ -153,6 +135,13 @@ const Lessons = () => {
     setFormData((prev) => ({
       ...prev,
       [field]: dateTime,
+    }));
+  };
+
+  const handleRemoveIntroVideo = () => {
+    setFormData((prev) => ({
+      ...prev,
+      introVideoUrl: "",
     }));
   };
 
@@ -256,7 +245,7 @@ const Lessons = () => {
       }
 
       if (formData.startTime) {
-        const formattedStartTime = convertTo24Hour(formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         formDataToSend.append("startTime", formattedStartTime);
         console.log("Formatted startTime for submission:", formattedStartTime);
       } else {
@@ -265,7 +254,7 @@ const Lessons = () => {
       }
 
       if (formData.endTime) {
-        const formattedEndTime = convertTo24Hour(formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         formDataToSend.append("endTime", formattedEndTime);
         console.log("Formatted endTime for submission:", formattedEndTime);
       } else {
@@ -274,12 +263,15 @@ const Lessons = () => {
       }
 
       formDataToSend.append("recordedVideoLink", formData.videoLink || "");
-      if (formData.introVideoUrl) {
-        console.log("Appending introVideoUrl:", formData.introVideoUrl);
-        formDataToSend.append("introVideoUrl", formData.introVideoUrl);
-      } else {
-        console.log("No introVideoUrl provided, sending empty string for introVideoUrl");
+      const introVideo = formData.introVideoUrl;
+      if (introVideo instanceof File) {
+        console.log("Appending introVideoUrl file:", introVideo);
+        formDataToSend.append("introVideoUrl", introVideo);
+      } else if (introVideo === "") {
+        console.log("Appending empty string to clear introVideoUrl");
         formDataToSend.append("introVideoUrl", "");
+      } else {
+        console.log("No change to introVideoUrl, not appending");
       }
       formDataToSend.append("courseId", courseId || "");
       formDataToSend.append("subcourseId", subCourseId || "");
@@ -365,7 +357,7 @@ const Lessons = () => {
       }
 
       if (formData.startTime) {
-        const formattedStartTime = convertTo24Hour(formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         formDataToSend.append("startTime", formattedStartTime);
         console.log("Formatted startTime for update:", formattedStartTime);
       } else {
@@ -374,7 +366,7 @@ const Lessons = () => {
       }
 
       if (formData.endTime) {
-        const formattedEndTime = convertTo24Hour(formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         formDataToSend.append("endTime", formattedEndTime);
         console.log("Formatted endTime for update:", formattedEndTime);
       } else {
@@ -383,12 +375,15 @@ const Lessons = () => {
       }
 
       formDataToSend.append("recordedVideoLink", formData.videoLink || "");
-      if (formData.introVideoUrl) {
-        console.log("Appending introVideoUrl:", formData.introVideoUrl);
-        formDataToSend.append("introVideoUrl", formData.introVideoUrl);
-      } else {
-        console.log("No introVideoUrl provided, sending empty string for introVideoUrl");
+      const introVideo = formData.introVideoUrl;
+      if (introVideo instanceof File) {
+        console.log("Appending introVideoUrl file:", introVideo);
+        formDataToSend.append("introVideoUrl", introVideo);
+      } else if (introVideo === "") {
+        console.log("Appending empty string to clear introVideoUrl");
         formDataToSend.append("introVideoUrl", "");
+      } else {
+        console.log("No change to introVideoUrl, not appending");
       }
 
       // Log FormData entries
@@ -820,7 +815,8 @@ const Lessons = () => {
                     showTimeSelectOnly
                     timeIntervals={15}
                     timeCaption="Time"
-                    dateFormat="h:mm aa"
+                    dateFormat="HH:mm"
+                    timeFormat="HH:mm"
                     className="w-full px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
                     placeholderText="Select start time"
                   />
@@ -837,7 +833,8 @@ const Lessons = () => {
                     showTimeSelectOnly
                     timeIntervals={15}
                     timeCaption="Time"
-                    dateFormat="h:mm aa"
+                    dateFormat="HH:mm"
+                    timeFormat="HH:mm"
                     className="w-full px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
                     placeholderText="Select end time"
                   />
@@ -862,7 +859,7 @@ const Lessons = () => {
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">INTRO VIDEO URL</label>
                 {formData.introVideoUrl && typeof formData.introVideoUrl === "string" && (
-                  <div className="mb-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <a
                       href={formData.introVideoUrl}
                       target="_blank"
@@ -871,6 +868,12 @@ const Lessons = () => {
                     >
                       View Current Video
                     </a>
+                    <button
+                      onClick={handleRemoveIntroVideo}
+                      className="text-red-500 text-sm hover:underline"
+                    >
+                      Remove
+                    </button>
                   </div>
                 )}
                 <div className="relative">

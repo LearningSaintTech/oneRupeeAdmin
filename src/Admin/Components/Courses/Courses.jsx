@@ -22,6 +22,7 @@ const Courses = () => {
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [courseName, setCourseName] = useState("");
   const [internshipPrice, setInternshipPrice] = useState("Rs 99/-");
+  const [certificatePrice, setCertificatePrice] = useState("Rs 99/-");
   const [certificateDescription, setCertificateDescription] = useState(
     "In this course you will learn how to build a space to a 3-dimensional product..."
   );
@@ -172,41 +173,48 @@ const Courses = () => {
     };
   }, [searchQuery, token, currentPage, selectedDate, navigate]);
 
-  const openModal = (course = null) => {
-    console.log("🌐 Opening modal, course:", course);
-    if (course) {
-      setCourseName(course.courseName || "");
-      setInternshipPrice(
-        course.CourseInternshipPrice !== undefined && course.CourseInternshipPrice !== null
-          ? `Rs ${course.CourseInternshipPrice}/-`
-          : "Rs 99/-"
-      );
-      setCertificateDescription(
-        course.certificateDescription ||
+ const openModal = (course = null) => {
+  console.log("🌐 Opening modal, course:", course);
+  if (course) {
+    setCourseName(course.courseName || "");
+    setInternshipPrice(
+      course.CourseInternshipPrice !== undefined && course.CourseInternshipPrice !== null
+        ? `Rs ${course.CourseInternshipPrice}/-`
+        : "Rs 99/-"
+    );
+    setCertificatePrice(
+      course.courseCertificatePrice !== undefined && course.courseCertificatePrice !== null
+        ? `Rs ${course.courseCertificatePrice}/-`
+        : "Rs 99/-"
+    );
+    setCertificateDescription(
+      course.certificateDescription ||
         "In this course you will learn how to build a space to a 3-dimensional product..."
-      );
-      setCoverImage(course.CoverImageUrl || null);
-      setSelectedCourseId(course._id);
-      console.log("🔧 Editing course, selectedCourseId:", course._id);
-    } else {
-      setCourseName("");
-      setInternshipPrice("Rs 99/-");
-      setCertificateDescription(
-        "In this course you will learn how to build a space to a 3-dimensional product..."
-      );
-      setCoverImage(null);
-      setSelectedCourseId(null);
-      console.log("➕ Adding new course, selectedCourseId cleared...");
-    }
-    setIsModalOpen(true);
-    setError(null);
-  };
+    );
+    setCoverImage(course.CoverImageUrl || null);
+    setSelectedCourseId(course._id);
+    console.log("🔧 Editing course, selectedCourseId:", course._id);
+  } else {
+    setCourseName("");
+    setInternshipPrice("Rs 99/-");
+    setCertificatePrice("Rs 99/-");
+    setCertificateDescription(
+      "In this course you will learn how to build a space to a 3-dimensional product..."
+    );
+    setCoverImage(null);
+    setSelectedCourseId(null);
+    console.log("➕ Adding new course, selectedCourseId cleared...");
+  }
+  setIsModalOpen(true);
+  setError(null);
+};
 
   const closeModal = () => {
     console.log("❌ Closing modal...");
     setIsModalOpen(false);
     setCourseName("");
     setInternshipPrice("Rs 99/-");
+    setCertificatePrice("Rs 99/-");
     setCertificateDescription(
       "In this course you will learn how to build a space to a 3-dimensional product..."
     );
@@ -300,12 +308,22 @@ const Courses = () => {
       return;
     }
 
+    const parsedInternshipPrice = parseInt(internshipPrice.replace("Rs ", "").replace("/-", "")) || 99;
+    const parsedCertificatePrice = parseInt(certificatePrice.replace("Rs ", "").replace("/-", "")) || 99;
+
+    console.log("🔍 Parsed prices:", { internshipPrice: parsedInternshipPrice, certificatePrice: parsedCertificatePrice });
+
+    if (isNaN(parsedCertificatePrice) || parsedCertificatePrice <= 0) {
+      console.log("⚠️ Invalid certificate price:", certificatePrice);
+      setError("Please enter a valid certificate price (e.g., Rs 99/-).");
+      toast.error("Please enter a valid certificate price.");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("courseName", courseName);
-    formData.append(
-      "CourseInternshipPrice",
-      parseInt(internshipPrice.replace("Rs ", "").replace("/-", "")) || 99
-    );
+    formData.append("CourseInternshipPrice", parsedInternshipPrice);
+    formData.append("courseCertificatePrice", parsedCertificatePrice);
     if (certificateDescription) {
       formData.append("certificateDescription", certificateDescription);
     }
@@ -483,16 +501,16 @@ const Courses = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
                   S.N.
                 </th>
-                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
                   Course Name
                 </th>
-                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
                   Thumbnail
                 </th>
-                <th className="bg-yellow-300 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
+                <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
                   Delete/Edit
                 </th>
               </tr>
@@ -661,6 +679,20 @@ const Courses = () => {
                 type="text"
                 value={internshipPrice}
                 onChange={(e) => setInternshipPrice(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-orange-500 font-medium"
+                placeholder="Rs 99/-"
+              />
+            </div>
+
+            {/* Certificate Price */}
+            <div className="mb-4 sm:mb-5">
+              <label className="block text-gray-700 font-semibold mb-1.5 text-xs sm:text-sm">
+                Certificate Price
+              </label>
+              <input
+                type="text"
+                value={certificatePrice}
+                onChange={(e) => setCertificatePrice(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-orange-500 font-medium"
                 placeholder="Rs 99/-"
               />

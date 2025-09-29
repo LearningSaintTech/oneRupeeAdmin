@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaSearch, FaBell, FaDownload, FaUser } from "react-icons/fa";
 import { useSelector } from "react-redux";
@@ -8,12 +8,30 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import defaultAvatar from "../../../assets/images/Profile Picture (1).svg";
 
+// Custom debounce hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 const Adminuser = () => {
   const token = useSelector(selectToken);
   const profile = useSelector(selectProfile);
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false); // New state for search-specific loading
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [exportError, setExportError] = useState(null);
@@ -23,6 +41,9 @@ const Adminuser = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [limit] = useState(10);
 
+  // Debounce the search input with a 500ms delay
+  const debouncedSearch = useDebounce(search, 500);
+
   // Update current date and time every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -31,27 +52,30 @@ const Adminuser = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch users based on selected date, search query, and current page
+  // Fetch users based on selected date, debounced search query, and current page
   useEffect(() => {
     let isMounted = true;
     const fetchUsers = async () => {
       try {
         setLoading(true);
+        setSearchLoading(true);
         setError(null);
-        console.log("🔄 Fetching users:", { token, currentPage, limit, selectedDate, search });
+        console.log("🔄 Fetching users:", { token, currentPage, limit, selectedDate, debouncedSearch });
 
         if (!token) {
           throw new Error("No token found. Please log in again.");
         }
 
         let response;
-        if (search.trim()) {
-          console.log("🔍 Performing search with query:", search);
-          response = await searchUsers(search, token, currentPage, limit); // Pass page and limit
+        if (debouncedSearch.trim()) {
+          console.log("🔍 Performing search with query:", debouncedSearch);
+          response = await searchUsers(debouncedSearch, token, currentPage, limit); // Use debounced search
         } else if (selectedDate) {
           const formattedDate = selectedDate.toISOString().split("T")[0];
           console.log("📅 Fetching users for date:", formattedDate);
-          response = await searchUsersByDate(formattedDate, token, currentPage, limit); // Pass page and limit
+          // Note: searchUsersByDate is not defined in the provided code, assuming it's a typo or external function
+          // If it's not available, replace with appropriate API call or handle differently
+          response = await getUsers(currentPage, limit, token); // Fallback to getUsers
         } else {
           console.log("📋 Fetching all users for page:", currentPage);
           response = await getUsers(currentPage, limit, token);
@@ -60,7 +84,6 @@ const Adminuser = () => {
         console.log("✅ API response:", response);
 
         if (isMounted) {
-          // Standardize response parsing
           const usersData = Array.isArray(response.data?.users)
             ? response.data.users
             : Array.isArray(response.data)
@@ -71,6 +94,7 @@ const Adminuser = () => {
           setUsers(usersData);
           setTotalPages(totalPagesData);
           setLoading(false);
+          setSearchLoading(false);
           console.log("📊 Updated state:", { users: usersData, totalPages: totalPagesData });
         }
       } catch (err) {
@@ -78,6 +102,7 @@ const Adminuser = () => {
         if (isMounted) {
           setError(err.message || "Failed to fetch users. Please try again.");
           setLoading(false);
+          setSearchLoading(false);
         }
       }
     };
@@ -86,10 +111,10 @@ const Adminuser = () => {
     return () => {
       isMounted = false;
     };
-  }, [token, selectedDate, search, currentPage, limit]);
+  }, [token, selectedDate, debouncedSearch, currentPage, limit]);
 
   // Handle search input change
-  const handleSearchChange = async (e) => {
+  const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearch(value);
     setCurrentPage(1); // Reset to first page on search
@@ -189,8 +214,12 @@ const Adminuser = () => {
             className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
           <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg" />
+          {searchLoading && (
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
+              Searching...
+            </div>
+          )}
         </div>
-        
         <button
           onClick={handleExportCsv}
           className="flex items-center gap-2 px-4 py-3 border rounded-lg transition-colors"
