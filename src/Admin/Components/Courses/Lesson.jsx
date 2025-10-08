@@ -14,26 +14,35 @@ import {
   updateLesson,
   deleteLesson,
   searchLesson,
+  addRecordedLessons,
+  updateRecordedLessons,
 } from "../../apis/LessonApi";
 
 const Lessons = () => {
   const location = useLocation();
-  const { courseId, subCourseId } = location.state || {};
+  const { courseId, subCourseId, recordedLink: initialRecordedLink, recordedPrice: initialRecordedPrice } = location.state || {};
   const navigate = useNavigate();
 
-  console.log("Lessons component mounted with:", { courseId, subCourseId });
+  console.log("Lessons component mounted with:", { courseId, subCourseId, initialRecordedLink, initialRecordedPrice });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRecordedModalOpen, setIsRecordedModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [lessonToDelete, setLessonToDelete] = useState(null);
-  const [lessons, setLessons] = useState([]);
+  const [allLessons, setAllLessons] = useState([]); // Store full lessons array
+  const [displayedLessons, setDisplayedLessons] = useState([]); // Store paginated lessons
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 5; // Items per page
+  const [limit, setLimit] = useState(10); // Set limit to 10 per request
+
+  const [recordedLink, setRecordedLink] = useState(initialRecordedLink || "");
+  const [recordedPrice, setRecordedPrice] = useState(initialRecordedPrice || "");
+  const [modalRecordedLink, setModalRecordedLink] = useState(initialRecordedLink || "");
+  const [modalRecordedPrice, setModalRecordedPrice] = useState(initialRecordedPrice || "");
 
   console.log("Initial token from localStorage:", token);
 
@@ -55,7 +64,7 @@ const Lessons = () => {
       return "10:00 AM";
     }
     try {
-      const [hours, minutes] = time24.split(":").slice(0, 2); // Handle "HH:MM" or "HH:MM:SS"
+      const [hours, minutes] = time24.split(":").slice(0, 2);
       const hour = parseInt(hours, 10);
       const period = hour >= 12 ? "PM" : "AM";
       const hour12 = hour % 12 || 12;
@@ -69,7 +78,6 @@ const Lessons = () => {
   const validateFormData = (formData) => {
     if (!formData.lessonName) return "Lesson name is required";
     if (!formData.lessonDescription) return "Lesson description is required";
-    // Add more validations if required by the API
     console.log("Form validation passed:", JSON.stringify(formData, null, 2));
     return null;
   };
@@ -91,15 +99,34 @@ const Lessons = () => {
 
       setLoading(true);
       try {
-        console.log("Fetching lessons for subCourseId:", subCourseId, "Page:", currentPage);
-        const data = await fetchAllLessonsById(subCourseId, token, currentPage, limit);
+        console.log("Fetching all lessons for subCourseId:", subCourseId);
+        // Fetch all lessons at once
+        const data = await fetchAllLessonsById(subCourseId, token, 1, 100);
         console.log("Lessons fetched:", JSON.stringify(data, null, 2));
         if (Array.isArray(data.data?.lessons)) {
-          setLessons(data.data.lessons);
-          setTotalPages(Math.ceil(data.data.pagination?.totalLessons / limit) || 1);
+          // Sort lessons by date (ascending), null dates at the end
+          const sortedLessons = data.data.lessons.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date) : null;
+            const dateB = b.date ? new Date(b.date) : null;
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1;
+            if (!dateB) return -1;
+            return dateA - dateB;
+          });
+          setAllLessons(sortedLessons); // Store full lessons array
+          // Apply client-side pagination
+          const startIndex = (currentPage - 1) * limit;
+          setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
+          // Calculate total pages
+          const totalLessons = data.data.pagination?.totalLessons || sortedLessons.length;
+          setTotalPages(Math.ceil(totalLessons / limit) || 1);
+          console.log("All lessons:", JSON.stringify(sortedLessons, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(startIndex, startIndex + limit), null, 2));
+          console.log("Pagination state:", { currentPage, totalPages, limit, totalLessons });
         } else {
           console.warn("fetchAllLessonsById did not return an array:", data.data?.lessons);
-          setLessons([]);
+          setAllLessons([]);
+          setDisplayedLessons([]);
           setTotalPages(1);
           toast.info("No lessons found.");
         }
@@ -119,7 +146,15 @@ const Lessons = () => {
     };
 
     fetchLessons();
-  }, [token, navigate, subCourseId, courseId, currentPage]);
+  }, [token, navigate, subCourseId, courseId]); // Removed currentPage from dependencies
+
+  // Update displayedLessons when currentPage or allLessons changes
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * limit;
+    setDisplayedLessons(allLessons.slice(startIndex, startIndex + limit));
+    console.log("Updated displayed lessons:", JSON.stringify(allLessons.slice(startIndex, startIndex + limit), null, 2));
+    console.log("Pagination state:", { currentPage, totalPages, limit, totalLessons: allLessons.length });
+  }, [currentPage, allLessons, limit]);
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
@@ -161,27 +196,54 @@ const Lessons = () => {
     try {
       if (query.trim() === "") {
         console.log("Fetching all lessons for subCourseId:", subCourseId);
-        const data = await fetchAllLessonsById(subCourseId, token, 1, limit);
+        const data = await fetchAllLessonsById(subCourseId, token, 1, 100);
         console.log("Fetched lessons by subCourseId:", JSON.stringify(data, null, 2));
         if (Array.isArray(data.data?.lessons)) {
-          setLessons(data.data.lessons);
-          setTotalPages(Math.ceil(data.data.pagination?.totalLessons / limit) || 1);
+          const sortedLessons = data.data.lessons.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date) : null;
+            const dateB = b.date ? new Date(b.date) : null;
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1;
+            if (!dateB) return -1;
+            return dateA - dateB;
+          });
+          setAllLessons(sortedLessons);
+          setDisplayedLessons(sortedLessons.slice(0, limit));
+          const totalLessons = data.data.pagination?.totalLessons || sortedLessons.length;
+          setTotalPages(Math.ceil(totalLessons / limit) || 1);
+          console.log("All lessons after fetch:", JSON.stringify(sortedLessons, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(0, limit), null, 2));
+          console.log("Pagination state:", { currentPage: 1, totalPages, limit, totalLessons });
         } else {
           console.warn("fetchAllLessonsById did not return an array:", data.data?.lessons);
-          setLessons([]);
+          setAllLessons([]);
+          setDisplayedLessons([]);
           setTotalPages(1);
           toast.info("No lessons found.");
         }
       } else {
         console.log("Calling searchLesson API with query:", query);
-        const response = await searchLesson(query, token, currentPage, limit, subCourseId);
+        const response = await searchLesson(query, token, 1, 100, subCourseId);
         console.log("Search results:", JSON.stringify(response, null, 2));
         if (Array.isArray(response.data)) {
-          setLessons(response.data);
-          setTotalPages(Math.ceil(response.data.length / limit) || 1);
+          const sortedLessons = response.data.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date) : null;
+            const dateB = b.date ? new Date(b.date) : null;
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1;
+            if (!dateB) return -1;
+            return dateA - dateB;
+          });
+          setAllLessons(sortedLessons);
+          setDisplayedLessons(sortedLessons.slice(0, limit));
+          setTotalPages(Math.ceil(sortedLessons.length / limit) || 1);
+          console.log("All lessons after search:", JSON.stringify(sortedLessons, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(0, limit), null, 2));
+          console.log("Pagination state:", { currentPage: 1, totalPages, limit, totalLessons: sortedLessons.length });
         } else {
           console.warn("Search API did not return an array:", response.data);
-          setLessons([]);
+          setAllLessons([]);
+          setDisplayedLessons([]);
           setTotalPages(1);
           toast.info("No lessons found for the search query.");
         }
@@ -234,7 +296,6 @@ const Lessons = () => {
       formDataToSend.append("classLink", formData.lessonLiveClassLink || "");
       formDataToSend.append("description", formData.lessonDescription || "");
 
-      // Always send date, startTime, and endTime, even if empty
       if (formData.date) {
         const formattedDate = `${formData.date.getFullYear()}-${(formData.date.getMonth() + 1).toString().padStart(2, "0")}-${formData.date.getDate().toString().padStart(2, "0")}`;
         formDataToSend.append("date", formattedDate);
@@ -245,7 +306,7 @@ const Lessons = () => {
       }
 
       if (formData.startTime) {
-        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
         formDataToSend.append("startTime", formattedStartTime);
         console.log("Formatted startTime for submission:", formattedStartTime);
       } else {
@@ -254,7 +315,7 @@ const Lessons = () => {
       }
 
       if (formData.endTime) {
-        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
         formDataToSend.append("endTime", formattedEndTime);
         console.log("Formatted endTime for submission:", formattedEndTime);
       } else {
@@ -276,19 +337,27 @@ const Lessons = () => {
       formDataToSend.append("courseId", courseId || "");
       formDataToSend.append("subcourseId", subCourseId || "");
 
-      // Log FormData entries
       console.log("FormData entries:", Object.fromEntries(formDataToSend.entries()));
 
       console.log("Calling addLesson API");
       const response = await addLesson(formDataToSend, token);
       console.log("Lesson added successfully, response:", JSON.stringify(response, null, 2));
 
-      setLessons((prev) => {
-        const updatedLessons = [...prev, response.data];
+      setAllLessons((prev) => {
+        const updatedLessons = [response.data, ...prev];
+        const sortedLessons = updatedLessons.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date) : null;
+          const dateB = b.date ? new Date(b.date) : null;
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return dateA - dateB;
+        });
         const startIndex = (currentPage - 1) * limit;
-        return updatedLessons.slice(startIndex, startIndex + limit);
+        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(sortedLessons.length / limit));
+        return sortedLessons;
       });
-      setTotalPages(Math.ceil((lessons.length + 1) / limit));
       setIsModalOpen(false);
       toast.success("Lesson added successfully!");
 
@@ -346,7 +415,6 @@ const Lessons = () => {
       formDataToSend.append("classLink", formData.lessonLiveClassLink || "");
       formDataToSend.append("description", formData.lessonDescription || "");
 
-      // Always send date, startTime, and endTime, even if empty
       if (formData.date) {
         const formattedDate = `${formData.date.getFullYear()}-${(formData.date.getMonth() + 1).toString().padStart(2, "0")}-${formData.date.getDate().toString().padStart(2, "0")}`;
         formDataToSend.append("date", formattedDate);
@@ -357,7 +425,7 @@ const Lessons = () => {
       }
 
       if (formData.startTime) {
-        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const formattedStartTime = formData.startTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
         formDataToSend.append("startTime", formattedStartTime);
         console.log("Formatted startTime for update:", formattedStartTime);
       } else {
@@ -366,7 +434,7 @@ const Lessons = () => {
       }
 
       if (formData.endTime) {
-        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const formattedEndTime = formData.endTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
         formDataToSend.append("endTime", formattedEndTime);
         console.log("Formatted endTime for update:", formattedEndTime);
       } else {
@@ -386,19 +454,28 @@ const Lessons = () => {
         console.log("No change to introVideoUrl, not appending");
       }
 
-      // Log FormData entries
       console.log("FormData entries for update:", Object.fromEntries(formDataToSend.entries()));
 
       console.log("Calling updateLesson API");
       const response = await updateLesson(lessonId, formDataToSend, token);
       console.log("Lesson updated successfully:", JSON.stringify(response, null, 2));
 
-      setLessons((prev) => {
+      setAllLessons((prev) => {
         const updatedLessons = prev.map((lesson) =>
           (lesson._id || lesson.lessonId) === lessonId ? response.data : lesson
         );
+        const sortedLessons = updatedLessons.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date) : null;
+          const dateB = b.date ? new Date(b.date) : null;
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return dateA - dateB;
+        });
         const startIndex = (currentPage - 1) * limit;
-        return updatedLessons.slice(startIndex, startIndex + limit);
+        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(sortedLessons.length / limit));
+        return sortedLessons;
       });
       setIsModalOpen(false);
       toast.success("Lesson updated successfully!");
@@ -443,14 +520,23 @@ const Lessons = () => {
       console.log("Calling deleteLesson API");
       await deleteLesson(lessonId, token);
       console.log("Lesson deleted successfully:", lessonId);
-      setLessons((prev) => {
+      setAllLessons((prev) => {
         const updatedLessons = prev.filter((lesson) => (lesson._id || lesson.lessonId) !== lessonId);
+        const sortedLessons = updatedLessons.sort((a, b) => {
+          const dateA = a.date ? new Date(a.date) : null;
+          const dateB = b.date ? new Date(b.date) : null;
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return dateA - dateB;
+        });
         const startIndex = (currentPage - 1) * limit;
-        if (updatedLessons.length <= startIndex && currentPage > 1) {
+        if (sortedLessons.length <= startIndex && currentPage > 1) {
           setCurrentPage((prev) => prev - 1);
         }
-        setTotalPages(Math.ceil(updatedLessons.length / limit) || 1);
-        return updatedLessons.slice(startIndex, startIndex + limit);
+        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(sortedLessons.length / limit) || 1);
+        return sortedLessons;
       });
       setIsDeleteModalOpen(false);
       toast.success("Lesson deleted successfully!");
@@ -473,7 +559,6 @@ const Lessons = () => {
   const handleEditLesson = (lesson) => {
     console.log("Editing lesson, raw lesson object:", JSON.stringify(lesson, null, 2));
 
-    // Helper function to parse time strings into Date objects
     const parseTimeToDate = (timeStr) => {
       if (!timeStr) {
         console.warn("parseTimeToDate: No time string provided, returning null");
@@ -481,7 +566,6 @@ const Lessons = () => {
       }
       try {
         let hours, minutes;
-        // Handle formats: "HH:MM AM/PM", "HH:MM", "HH:MM:SS"
         if (timeStr.includes(":")) {
           if (timeStr.includes("AM") || timeStr.includes("PM")) {
             const [time, period] = timeStr.split(" ");
@@ -509,7 +593,6 @@ const Lessons = () => {
       }
     };
 
-    // Helper function to parse date strings
     const parseDate = (dateStr) => {
       if (!dateStr) {
         console.warn("parseDate: No date string provided, returning null");
@@ -528,7 +611,6 @@ const Lessons = () => {
       }
     };
 
-    // Standardize lesson object properties with fallback values
     const newFormData = {
       _id: lesson._id || lesson.lessonId || "",
       lessonName: lesson.lessonName || lesson.name || "",
@@ -541,29 +623,47 @@ const Lessons = () => {
       introVideoUrl: lesson.introVideoUrl || null,
     };
 
-    // Warn if expected fields are missing
-    if (!lesson.classLink && !lesson.lessonLiveClassLink) {
-      console.warn("Lesson object missing classLink/lessonLiveClassLink");
-    }
-    if (!lesson.date) {
-      console.warn("Lesson object missing date");
-    }
-    if (!lesson.startTime) {
-      console.warn("Lesson object missing startTime");
-    }
-    if (!lesson.endTime) {
-      console.warn("Lesson object missing endTime");
-    }
-    if (!lesson.recordedVideoLink && !lesson.videoLink) {
-      console.warn("Lesson object missing recordedVideoLink/videoLink");
-    }
-    if (!lesson.introVideoUrl) {
-      console.warn("Lesson object missing introVideoUrl");
-    }
-
     console.log("Form data set for edit:", JSON.stringify(newFormData, null, 2));
     setFormData(newFormData);
     setIsModalOpen(true);
+  };
+
+  const handleOpenRecordedModal = () => {
+    setModalRecordedLink(recordedLink);
+    setModalRecordedPrice(recordedPrice);
+    setIsRecordedModalOpen(true);
+  };
+
+  const handleSaveRecorded = async (e) => {
+    e.preventDefault();
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    try {
+      const payload = {
+        recordedlessonsLink: modalRecordedLink,
+        recordedlessonsPrice: modalRecordedPrice,
+      };
+      console.log("JSON payload:", JSON.stringify(payload, null, 2));
+
+      let response;
+      if (!recordedLink) {
+        response = await addRecordedLessons(subCourseId, payload, token);
+      } else {
+        response = await updateRecordedLessons(subCourseId, payload, token);
+      }
+      console.log("Recorded lessons saved:", JSON.stringify(response, null, 2));
+      setRecordedLink(response.data.recordedlessonsLink || modalRecordedLink);
+      setRecordedPrice(response.data.recordedlessonsPrice || modalRecordedPrice);
+      setModalRecordedLink(response.data.recordedlessonsLink || modalRecordedLink);
+      setModalRecordedPrice(response.data.recordedlessonsPrice || modalRecordedPrice);
+      setIsRecordedModalOpen(false);
+      toast.success("Recorded lessons updated successfully!");
+    } catch (err) {
+      console.error("Error saving recorded lessons:", err);
+      toast.error("Failed to save recorded lessons.");
+    }
   };
 
   if (loading) return <div>Loading...</div>;
@@ -578,7 +678,7 @@ const Lessons = () => {
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">Lessons</h1>
         <div className="flex items-center gap-3 sm:gap-4">
           <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-            Mon, <span className="font-semibold">05:10 PM IST</span>
+            Wed, <span className="font-semibold">11:30 AM IST</span>
           </span>
           <div className="relative">
             <FaBell
@@ -637,6 +737,12 @@ const Lessons = () => {
             >
               Add Lessons <FaPlus />
             </button>
+            <button
+              onClick={handleOpenRecordedModal}
+              className="bg-gradient-to-r from-[#003E54] to-[#0090b2] text-white px-4 sm:px-6 py-2 sm:py-3 rounded-md flex items-center gap-2 hover:from-[#002a3a] hover:to-[#007a94] transition whitespace-nowrap font-medium text-xs sm:text-sm"
+            >
+              Add Recorded Lesson
+            </button>
           </div>
         </div>
 
@@ -653,35 +759,43 @@ const Lessons = () => {
                 </tr>
               </thead>
               <tbody>
-                {lessons.slice(0, limit).map((lesson, index) => (
-                  <tr key={lesson._id || lesson.lessonId} className="hover:bg-gray-50 transition border-b border-gray-100">
-                    <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm font-medium">
-                      {(currentPage - 1) * limit + index + 1}
-                    </td>
-                    <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm">{lesson.lessonName || "N/A"}</td>
-                    <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm text-gray-600">{lesson.duration || "N/A"}</td>
-                    <td className="py-3 sm:py-4 px-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => handleEditLesson(lesson)}
-                          className="bg-[#FF8800] p-2 sm:p-2.5 rounded text-white hover:bg-[#e67a00] transition shadow-sm"
-                        >
-                          <FiEdit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            console.log("Opening delete confirmation for lesson:", lesson._id || lesson.lessonId);
-                            setLessonToDelete(lesson._id || lesson.lessonId);
-                            setIsDeleteModalOpen(true);
-                          }}
-                          className="bg-[#FF8800] p-2 sm:p-2.5 rounded text-white hover:bg-[#e67a00] transition shadow-sm"
-                        >
-                          <FiTrash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                {displayedLessons.length > 0 ? (
+                  displayedLessons.map((lesson, index) => (
+                    <tr key={lesson._id || lesson.lessonId} className="hover:bg-gray-50 transition border-b border-gray-100">
+                      <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm font-medium">
+                        {(currentPage - 1) * limit + index + 1}
+                      </td>
+                      <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm">{lesson.lessonName || "N/A"}</td>
+                      <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm text-gray-600">{lesson.duration || "N/A"}</td>
+                      <td className="py-3 sm:py-4 px-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleEditLesson(lesson)}
+                            className="bg-[#FF8800] p-2 sm:p-2.5 rounded text-white hover:bg-[#e67a00] transition shadow-sm"
+                          >
+                            <FiEdit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log("Opening delete confirmation for lesson:", lesson._id || lesson.lessonId);
+                              setLessonToDelete(lesson._id || lesson.lessonId);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="bg-[#FF8800] p-2 sm:p-2.5 rounded text-white hover:bg-[#e67a00] transition shadow-sm"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm text-gray-600">
+                      No lessons available on this page.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -690,7 +804,10 @@ const Lessons = () => {
       <div className="flex justify-center items-center gap-2 mt-4">
         <button
           disabled={currentPage <= 1}
-          onClick={() => setCurrentPage((prev) => prev - 1)}
+          onClick={() => setCurrentPage((prev) => {
+            console.log("Navigating to previous page:", prev - 1);
+            return prev - 1;
+          })}
           className={`px-3 py-1 rounded ${currentPage <= 1 ? "bg-gray-300 cursor-not-allowed" : "bg-orange-500 text-white hover:bg-orange-600"}`}
         >
           Prev
@@ -700,7 +817,10 @@ const Lessons = () => {
         </span>
         <button
           disabled={currentPage >= totalPages}
-          onClick={() => setCurrentPage((prev) => prev + 1)}
+          onClick={() => setCurrentPage((prev) => {
+            console.log("Navigating to next page:", prev + 1);
+            return prev + 1;
+          })}
           className={`px-3 py-1 rounded ${currentPage >= totalPages ? "bg-gray-300 cursor-not-allowed" : "bg-orange-500 text-white hover:bg-orange-600"}`}
         >
           Next
@@ -920,6 +1040,79 @@ const Lessons = () => {
         </div>
       )}
 
+      {isRecordedModalOpen && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/50 z-50 p-4 sm:p-0">
+          <div
+            className="bg-white w-full max-w-[95%] sm:max-w-[90%] md:max-w-[80%] lg:max-w-[600px] xl:max-w-[700px] 2xl:max-w-[800px] h-auto max-h-[90vh] p-4 sm:p-6 md:p-8 rounded-xl shadow-xl overflow-y-auto fixed right-0 top-0"
+            style={{ transform: isRecordedModalOpen ? "translateX(0)" : "translateX(100%)", transition: "transform 300ms ease-in-out" }}
+          >
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <img
+                  src={classroomImage}
+                  alt="Classroom"
+                  className="w-12 sm:w-16 h-12 sm:h-16 rounded-md object-cover"
+                />
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800">
+                  {recordedLink ? "Edit Recorded Lesson" : "Add Recorded Lesson"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsRecordedModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700 text-lg sm:text-xl md:text-2xl transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 sm:space-y-5">
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">RECORDED LESSON LINK</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={modalRecordedLink}
+                    onChange={(e) => setModalRecordedLink(e.target.value)}
+                    placeholder="https://example.com/video.mp4"
+                    className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+                  />
+                  <FiEdit className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 cursor-pointer" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">RECORDED PRICE</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={modalRecordedPrice}
+                    onChange={(e) => setModalRecordedPrice(e.target.value)}
+                    placeholder="99"
+                    className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+                  />
+                  <FiEdit className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 cursor-pointer" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => setIsRecordedModalOpen(false)}
+                  className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition text-xs sm:text-sm md:text-base"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveRecorded}
+                  className="px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition text-xs sm:text-sm md:text-base"
+                >
+                  Save Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isDeleteModalOpen && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/50 flex justify-center items-center z-50 p-4 sm:p-0">
           <div className="bg-white w-full max-w-[95%] sm:max-w-[400px] md:max-w-[450px] p-4 sm:p-6 rounded-xl shadow-xl">
@@ -945,4 +1138,5 @@ const Lessons = () => {
     </div>
   );
 };
+
 export default Lessons;

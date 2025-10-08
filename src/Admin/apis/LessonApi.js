@@ -1,4 +1,3 @@
-// src/apis/LessonApi.js
 import { requestJson, requestFormData } from "../../Admin/Services/ApiConnector";
 
 // ✅ Fetch all lessons
@@ -70,3 +69,25 @@ export const fetchAllLessonsById = async (id, token, page = 1, limit = 5) => {
   );
 };
 
+// ✅ Add recorded lessons
+// ✅ Add recorded lessons
+export const addRecordedLessons = async (subcourseId, data, token) => {
+  return await requestJson(
+    "POST",
+    `/api/admin/subcourse/add-recorded-lessons/${subcourseId}`,
+    data,
+    {},
+    token
+  );
+};
+
+// ✅ Update recorded lessons
+export const updateRecordedLessons = async (subcourseId, data, token) => {
+  return await requestJson(
+    "PUT",
+    `/api/admin/subcourse/update-recorded-lessons/${subcourseId}`,
+    data,
+    {},
+    token
+  );
+};
