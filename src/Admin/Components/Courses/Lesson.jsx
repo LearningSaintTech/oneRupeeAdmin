@@ -104,24 +104,14 @@ const Lessons = () => {
         const data = await fetchAllLessonsById(subCourseId, token, 1, 100);
         console.log("Lessons fetched:", JSON.stringify(data, null, 2));
         if (Array.isArray(data.data?.lessons)) {
-          // Sort lessons by date (ascending), null dates at the end
-          const sortedLessons = data.data.lessons.sort((a, b) => {
-            const dateA = a.date ? new Date(a.date) : null;
-            const dateB = b.date ? new Date(b.date) : null;
-            if (!dateA && !dateB) return 0;
-            if (!dateA) return 1;
-            if (!dateB) return -1;
-            return dateA - dateB;
-          });
-          setAllLessons(sortedLessons); // Store full lessons array
-          // Apply client-side pagination
+          // No sorting; use API order
+          setAllLessons(data.data.lessons);
           const startIndex = (currentPage - 1) * limit;
-          setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
-          // Calculate total pages
-          const totalLessons = data.data.pagination?.totalLessons || sortedLessons.length;
+          setDisplayedLessons(data.data.lessons.slice(startIndex, startIndex + limit));
+          const totalLessons = data.data.pagination?.totalLessons || data.data.lessons.length;
           setTotalPages(Math.ceil(totalLessons / limit) || 1);
-          console.log("All lessons:", JSON.stringify(sortedLessons, null, 2));
-          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(startIndex, startIndex + limit), null, 2));
+          console.log("All lessons:", JSON.stringify(data.data.lessons, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(data.data.lessons.slice(startIndex, startIndex + limit), null, 2));
           console.log("Pagination state:", { currentPage, totalPages, limit, totalLessons });
         } else {
           console.warn("fetchAllLessonsById did not return an array:", data.data?.lessons);
@@ -146,9 +136,9 @@ const Lessons = () => {
     };
 
     fetchLessons();
-  }, [token, navigate, subCourseId, courseId]); // Removed currentPage from dependencies
+  }, [token, navigate, subCourseId, courseId]);
 
-  // Update displayedLessons when currentPage or allLessons changes
+  // Update displayedLessons when currentPage changes
   useEffect(() => {
     const startIndex = (currentPage - 1) * limit;
     setDisplayedLessons(allLessons.slice(startIndex, startIndex + limit));
@@ -199,20 +189,12 @@ const Lessons = () => {
         const data = await fetchAllLessonsById(subCourseId, token, 1, 100);
         console.log("Fetched lessons by subCourseId:", JSON.stringify(data, null, 2));
         if (Array.isArray(data.data?.lessons)) {
-          const sortedLessons = data.data.lessons.sort((a, b) => {
-            const dateA = a.date ? new Date(a.date) : null;
-            const dateB = b.date ? new Date(b.date) : null;
-            if (!dateA && !dateB) return 0;
-            if (!dateA) return 1;
-            if (!dateB) return -1;
-            return dateA - dateB;
-          });
-          setAllLessons(sortedLessons);
-          setDisplayedLessons(sortedLessons.slice(0, limit));
-          const totalLessons = data.data.pagination?.totalLessons || sortedLessons.length;
+          setAllLessons(data.data.lessons);
+          setDisplayedLessons(data.data.lessons.slice(0, limit));
+          const totalLessons = data.data.pagination?.totalLessons || data.data.lessons.length;
           setTotalPages(Math.ceil(totalLessons / limit) || 1);
-          console.log("All lessons after fetch:", JSON.stringify(sortedLessons, null, 2));
-          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(0, limit), null, 2));
+          console.log("All lessons after fetch:", JSON.stringify(data.data.lessons, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(data.data.lessons.slice(0, limit), null, 2));
           console.log("Pagination state:", { currentPage: 1, totalPages, limit, totalLessons });
         } else {
           console.warn("fetchAllLessonsById did not return an array:", data.data?.lessons);
@@ -226,20 +208,12 @@ const Lessons = () => {
         const response = await searchLesson(query, token, 1, 100, subCourseId);
         console.log("Search results:", JSON.stringify(response, null, 2));
         if (Array.isArray(response.data)) {
-          const sortedLessons = response.data.sort((a, b) => {
-            const dateA = a.date ? new Date(a.date) : null;
-            const dateB = b.date ? new Date(b.date) : null;
-            if (!dateA && !dateB) return 0;
-            if (!dateA) return 1;
-            if (!dateB) return -1;
-            return dateA - dateB;
-          });
-          setAllLessons(sortedLessons);
-          setDisplayedLessons(sortedLessons.slice(0, limit));
-          setTotalPages(Math.ceil(sortedLessons.length / limit) || 1);
-          console.log("All lessons after search:", JSON.stringify(sortedLessons, null, 2));
-          console.log("Displayed lessons:", JSON.stringify(sortedLessons.slice(0, limit), null, 2));
-          console.log("Pagination state:", { currentPage: 1, totalPages, limit, totalLessons: sortedLessons.length });
+          setAllLessons(response.data);
+          setDisplayedLessons(response.data.slice(0, limit));
+          setTotalPages(Math.ceil(response.data.length / limit) || 1);
+          console.log("All lessons after search:", JSON.stringify(response.data, null, 2));
+          console.log("Displayed lessons:", JSON.stringify(response.data.slice(0, limit), null, 2));
+          console.log("Pagination state:", { currentPage: 1, totalPages, limit, totalLessons: response.data.length });
         } else {
           console.warn("Search API did not return an array:", response.data);
           setAllLessons([]);
@@ -345,18 +319,10 @@ const Lessons = () => {
 
       setAllLessons((prev) => {
         const updatedLessons = [response.data, ...prev];
-        const sortedLessons = updatedLessons.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : null;
-          const dateB = b.date ? new Date(b.date) : null;
-          if (!dateA && !dateB) return 0;
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return dateA - dateB;
-        });
         const startIndex = (currentPage - 1) * limit;
-        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
-        setTotalPages(Math.ceil(sortedLessons.length / limit));
-        return sortedLessons;
+        setDisplayedLessons(updatedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(updatedLessons.length / limit));
+        return updatedLessons;
       });
       setIsModalOpen(false);
       toast.success("Lesson added successfully!");
@@ -464,18 +430,10 @@ const Lessons = () => {
         const updatedLessons = prev.map((lesson) =>
           (lesson._id || lesson.lessonId) === lessonId ? response.data : lesson
         );
-        const sortedLessons = updatedLessons.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : null;
-          const dateB = b.date ? new Date(b.date) : null;
-          if (!dateA && !dateB) return 0;
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return dateA - dateB;
-        });
         const startIndex = (currentPage - 1) * limit;
-        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
-        setTotalPages(Math.ceil(sortedLessons.length / limit));
-        return sortedLessons;
+        setDisplayedLessons(updatedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(updatedLessons.length / limit));
+        return updatedLessons;
       });
       setIsModalOpen(false);
       toast.success("Lesson updated successfully!");
@@ -522,21 +480,13 @@ const Lessons = () => {
       console.log("Lesson deleted successfully:", lessonId);
       setAllLessons((prev) => {
         const updatedLessons = prev.filter((lesson) => (lesson._id || lesson.lessonId) !== lessonId);
-        const sortedLessons = updatedLessons.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : null;
-          const dateB = b.date ? new Date(b.date) : null;
-          if (!dateA && !dateB) return 0;
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return dateA - dateB;
-        });
         const startIndex = (currentPage - 1) * limit;
-        if (sortedLessons.length <= startIndex && currentPage > 1) {
+        if (updatedLessons.length <= startIndex && currentPage > 1) {
           setCurrentPage((prev) => prev - 1);
         }
-        setDisplayedLessons(sortedLessons.slice(startIndex, startIndex + limit));
-        setTotalPages(Math.ceil(sortedLessons.length / limit) || 1);
-        return sortedLessons;
+        setDisplayedLessons(updatedLessons.slice(startIndex, startIndex + limit));
+        setTotalPages(Math.ceil(updatedLessons.length / limit) || 1);
+        return updatedLessons;
       });
       setIsDeleteModalOpen(false);
       toast.success("Lesson deleted successfully!");
@@ -760,10 +710,10 @@ const Lessons = () => {
               </thead>
               <tbody>
                 {displayedLessons.length > 0 ? (
-                  displayedLessons.map((lesson, index) => (
+                  displayedLessons.map((lesson) => (
                     <tr key={lesson._id || lesson.lessonId} className="hover:bg-gray-50 transition border-b border-gray-100">
                       <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm font-medium">
-                        {(currentPage - 1) * limit + index + 1}
+                        {lesson.SNo}
                       </td>
                       <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm">{lesson.lessonName || "N/A"}</td>
                       <td className="py-3 sm:py-4 px-4 text-center text-xs sm:text-sm text-gray-600">{lesson.duration || "N/A"}</td>
