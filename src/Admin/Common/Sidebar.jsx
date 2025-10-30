@@ -8,6 +8,7 @@ const navItems = [
   // { label: 'Revenue', icon: <FiBarChart2 size={22} />, path: '/revenue' },
   { label: 'Users', icon: <FiUsers size={22} />, path: '/users' },
   { label: 'Courses', icon: <FiInbox size={22} />, path: '/courses' },
+  { label: 'Payments', icon: <FiBarChart2 size={22} />, path: '/payments' },
   { label: 'Promo', icon: <MdEvent size={22} />, path: '/promo' },
   { label: 'Notifications', icon: <FiInbox size={22} />, path: '/notifications' },
   { 

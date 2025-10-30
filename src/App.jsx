@@ -17,6 +17,7 @@ import Notification from './Admin/Components/Notifications/Notification';
 // import Revenue from './Admin/Components/Revenue/revenue';
 import SubCourse from './Admin/Components/Courses/Subcourse';
 import Lesson from './Admin/Components/Courses/Lesson';
+import Payment from './Admin/Components/Payment/Payment';
 
 // Settings pages
 import Profile from './Admin/Components/Settings/Profile';
@@ -42,6 +43,7 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="users" element={<User />} />
               <Route path="courses" element={<Courses />} />
+              <Route path="payments" element={<Payment />} />
               <Route path="promo" element={<Promo />} />
               <Route path="notifications" element={<Notification />} />
               {/* <Route path="revenue" element={<Revenue />} /> */}

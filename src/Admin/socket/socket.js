@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'https://main.learningsaint.com'; // Backend URL
+const SOCKET_URL = 'http://localhost:3000'; // Backend URL
 
 console.log(`🛠️ [Socket Setup] Initializing Socket.IO client with URL: ${SOCKET_URL}`);
 
