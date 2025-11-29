@@ -209,6 +209,7 @@ const Courses = () => {
   setError(null);
 };
 
+
   const closeModal = () => {
     console.log("❌ Closing modal...");
     setIsModalOpen(false);
@@ -476,7 +477,7 @@ const Courses = () => {
           onClick={() => openModal()}
           className="bg-gradient-to-r from-[#003E54] to-[#0090B2] text-white px-4 py-2 rounded-md flex items-center gap-2 whitespace-nowrap h-[50px] text-sm sm:text-base"
         >
-          Add Course <FaPlus />
+          Add Batch <FaPlus />
         </button>
       </div>
 
@@ -505,7 +506,7 @@ const Courses = () => {
                   S.N.
                 </th>
                 <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
-                  Course Name
+                  Batch Name
                 </th>
                 <th className="bg-yellow-400 py-3 px-4 text-center text-white font-semibold text-sm sm:text-base">
                   Thumbnail

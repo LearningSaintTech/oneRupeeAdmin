@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   FaSearch,
   FaBell,
-  FaStar,
+  FaStar, 
   FaCloudDownloadAlt,
   FaStarHalfAlt,
 } from "react-icons/fa";

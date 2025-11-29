@@ -13,6 +13,7 @@ export const requestForToken = async () => {
     
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
+
       console.log('🔔 [Firebase] Notification permission denied');
       return null;
     }
@@ -49,7 +50,7 @@ export const requestForToken = async () => {
   }
 };
 
-// Generate device ID
+// Generate device 
 export const getDeviceId = () => {
   let deviceId = localStorage.getItem('deviceId');
   if (!deviceId) {

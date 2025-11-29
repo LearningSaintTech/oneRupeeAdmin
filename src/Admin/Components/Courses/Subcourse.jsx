@@ -88,6 +88,10 @@ const SubCourses = () => {
     certificateDescription: "",
     introVideo: null,
     isUpComingCourse: false,
+    internshipPrice: "",
+   isRecordedLessonFree: false,
+isCertificateFree: false,
+isInternshipLetterFree: false,
   });
   const [contentFormData, setContentFormData] = useState({
     contentName: "",
@@ -178,6 +182,9 @@ const SubCourses = () => {
           description: course.subCourseDescription,
           price: `₹${course.price}`,
           certificatePrice: course.certificatePrice ? `₹${course.certificatePrice}` : "₹0",
+          internshipPrice: course.internshipLetterPrice
+      ? `₹${course.internshipLetterPrice}`
+      : "₹0",
           certificateDescription: course.certificateDescription || "",
           totalLessons: course.totalLessons || "",
           totalDuration: course.totalDuration || "",
@@ -185,6 +192,9 @@ const SubCourses = () => {
           introVideoUrl: course.introVideoUrl || "",
           thumbnailImageUrl: course.thumbnailImageUrl || "",
           isUpComingCourse,
+          isRecordedLessonFree: Boolean(course.isRecordedLessonFree),
+    isCertificateFree: Boolean(course.isCertificateFree),
+    isInternshipLetterFree: Boolean(course.isInternshipLetterFree),
         };
 
         return mappedCourse;
@@ -270,6 +280,8 @@ const SubCourses = () => {
             description: course.subCourseDescription || "",
             isUpComingCourse,
             certificatePrice: course.certificatePrice ? `₹${course.certificatePrice}` : "₹0",
+            internshipPrice: course.internshipLetterPrice
+  ? `₹${course.internshipLetterPrice}`  : "₹0",
             totalLessons: course.totalLessons || "",
             certificateDescription: course.certificateDescription || "",
             introVideoUrl: course.introVideoUrl || "",
@@ -356,132 +368,147 @@ const SubCourses = () => {
     console.log("📁 Intro video file selected:", file?.name);
   };
 
-  const handleAddSubCourse = async () => {
-    console.log("➕ Attempting to add subcourse with formData:", formData);
-    if (!token) {
-      setError("Please log in to add a subcourse.");
-      toast.error("Please log in to add a subcourse.");
-      navigate("/login");
-      return;
-    }
+ const handleAddSubCourse = async () => {
+  console.log("Adding subcourse with formData:", formData);
+  if (!token) {
+    setError("Please log in to add a subcourse.");
+    toast.error("Please log in to add a subcourse.");
+    navigate("/login");
+    return;
+  }
 
-    const cleanPrice = formData.price.replace("₹", "").trim();
-    const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
-    if (
-      !formData.name.trim() ||
-      !formData.description.trim() ||
-      !cleanPrice ||
-      isNaN(cleanPrice) ||
-      parseFloat(cleanPrice) <= 0 ||
-      (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
-      !formData.lessons ||
-      isNaN(formData.lessons) ||
-      parseInt(formData.lessons) <= 0 ||
-      !formData.courseId
-    ) {
-      setError("Please fill in all required fields with valid values.");
-      toast.error("Please fill in all required fields with valid values.");
-      console.error("❌ Validation failed for adding subcourse");
-      return;
-    }
+  const cleanPrice = formData.price.replace("₹", "").trim();
+  const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
+  const cleanInternshipPrice = formData.internshipPrice.replace("₹", "").trim() || "0"; // NEW
 
-    const formDataToSend = new FormData();
-    const duration = `${formData.durationHours}h ${formData.durationMinutes}min ${formData.durationSeconds}sec`;
+  if (
+    !formData.name.trim() ||
+    !formData.description.trim() ||
+    !cleanPrice ||
+    isNaN(cleanPrice) ||
+    parseFloat(cleanPrice) <= 0 ||
+    (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
+    (cleanInternshipPrice && (isNaN(cleanInternshipPrice) || parseFloat(cleanInternshipPrice) < 0)) || // NEW
+    !formData.lessons ||
+    isNaN(formData.lessons) ||
+    parseInt(formData.lessons) <= 0 ||
+    !formData.courseId
+  ) {
+    setError("Please fill in all required fields with valid values.");
+    toast.error("Please fill in all required fields with valid values.");
+    return;
+  }
 
-    formDataToSend.append("courseId", formData.courseId);
-    formDataToSend.append("subcourseName", formData.name.trim());
-    formDataToSend.append("subCourseDescription", formData.description.trim());
-    formDataToSend.append("price", cleanPrice);
-    formDataToSend.append("certificatePrice", cleanCertificatePrice);
-    formDataToSend.append("certificateDescription", formData.certificateDescription || "");
-    formDataToSend.append("totalLessons", formData.lessons.toString());
-    formDataToSend.append("totalDuration", duration);
-    formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
+  const formDataToSend = new FormData();
+  const duration = `${formData.durationHours}h ${formData.durationMinutes}min ${formData.durationSeconds}sec`;
+
+  formDataToSend.append("courseId", formData.courseId);
+  formDataToSend.append("subcourseName", formData.name.trim());
+  formDataToSend.append("subCourseDescription", formData.description.trim());
+  formDataToSend.append("price", cleanPrice);
+  formDataToSend.append("certificatePrice", cleanCertificatePrice);
+  formDataToSend.append("internshipLetterPrice", cleanInternshipPrice); // NEW
+  formDataToSend.append("certificateDescription", formData.certificateDescription || "");
+  formDataToSend.append("totalLessons", formData.lessons.toString());
+  formDataToSend.append("totalDuration", duration);
+  formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
+  formDataToSend.append("introVideoUrl", formData.introVideo);
+  // Inside handleAddSubCourse and handleEditSubCourse
+formDataToSend.append("isRecordedLessonFree", formData.isRecordedLessonFree);
+formDataToSend.append("isCertificateFree", formData.isCertificateFree);
+formDataToSend.append("isInternshipLetterFree", formData.isInternshipLetterFree);
+
+
+  try {
+    const response = await addSubCourse(formDataToSend, token);
+    console.log("Subcourse added:", response);
+    setIsAddModalOpen(false);
+    toast.success("Subcourse added successfully.");
+    loadSubCourses(pagination.currentPage);
+  } catch (error) {
+    console.error("Error adding subcourse:", error.response?.data, error.message);
+    setError(`Failed to add subcourse: ${error.response?.data?.message || error.message}`);
+    toast.error(`Failed to add subcourse: ${error.message}`);
+  }
+};
+const handleEditSubCourse = async () => {
+  console.log("Editing subcourse with formData:", formData);
+  if (!token) {
+    setError("Please log in to edit a subcourse.");
+    toast.error("Please log in to edit a subcourse.");
+    navigate("/login");
+    return;
+  }
+
+  const cleanPrice = formData.price.replace("₹", "").trim();
+  const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
+  const cleanInternshipPrice = formData.internshipPrice.replace("₹", "").trim() || "0"; // NEW
+
+  if (
+    !formData.name.trim() ||
+    !formData.description.trim() ||
+    !cleanPrice ||
+    isNaN(cleanPrice) ||
+    parseFloat(cleanPrice) <= 0 ||
+    (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
+    (cleanInternshipPrice && (isNaN(cleanInternshipPrice) || parseFloat(cleanInternshipPrice) < 0)) || // NEW
+    !formData.lessons ||
+    isNaN(formData.lessons) ||
+    parseInt(formData.lessons) <= 0
+  ) {
+    setError("Please fill in all required fields with valid values.");
+    toast.error("Please fill in all required fields with valid values.");
+    return;
+  }
+
+  const formDataToSend = new FormData();
+  const duration = `${formData.durationHours}h ${formData.durationMinutes}min ${formData.durationSeconds}sec`;
+
+  formDataToSend.append("subcourseName", formData.name.trim());
+  formDataToSend.append("subCourseDescription", formData.description.trim());
+  formDataToSend.append("price", cleanPrice);
+  formDataToSend.append("certificatePrice", cleanCertificatePrice);
+  formDataToSend.append("internshipLetterPrice", cleanInternshipPrice); // NEW
+  formDataToSend.append("totalLessons", formData.lessons.toString());
+  formDataToSend.append("totalDuration", duration);
+  formDataToSend.append("certificateDescription", formData.certificateDescription);
+  formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
+  // Inside handleAddSubCourse and handleEditSubCourse
+formDataToSend.append("isRecordedLessonFree", formData.isRecordedLessonFree);
+formDataToSend.append("isCertificateFree", formData.isCertificateFree);
+formDataToSend.append("isInternshipLetterFree", formData.isInternshipLetterFree);
+
+  if (formData.introVideo) {
     formDataToSend.append("introVideoUrl", formData.introVideo);
+  }
 
-    try {
-      console.log("📡 Sending addSubCourse request");
-      const response = await addSubCourse(formDataToSend, token);
-      console.log("✅ Subcourse added successfully:", response);
-      setIsAddModalOpen(false);
-      toast.success("Subcourse added successfully.");
-      loadSubCourses(pagination.currentPage);
-    } catch (error) {
-      console.error("❌ Error adding subcourse:", error.response?.data, error.message);
-      setError(`Failed to add subcourse: ${error.response?.data?.message || error.message}`);
-      toast.error(`Failed to add subcourse: ${error.message}`);
-    }
-  };
-
-  const handleEditSubCourse = async () => {
-    console.log("✏️ Attempting to edit subcourse with formData:", formData);
-    if (!token) {
-      setError("Please log in to edit a subcourse.");
-      toast.error("Please log in to edit a subcourse.");
-      navigate("/login");
-      return;
-    }
-
-    const cleanPrice = formData.price.replace("₹", "").trim();
-    const cleanCertificatePrice = formData.certificatePrice.replace("₹", "").trim() || "0";
-    if (
-      !formData.name.trim() ||
-      !formData.description.trim() ||
-      !cleanPrice ||
-      isNaN(cleanPrice) ||
-      parseFloat(cleanPrice) <= 0 ||
-      (cleanCertificatePrice && (isNaN(cleanCertificatePrice) || parseFloat(cleanCertificatePrice) < 0)) ||
-      !formData.lessons ||
-      isNaN(formData.lessons) ||
-      parseInt(formData.lessons) <= 0
-    ) {
-      setError("Please fill in all required fields with valid values.");
-      toast.error("Please fill in all required fields with valid values.");
-      console.error("❌ Validation failed for editing subcourse");
-      return;
-    }
-
-    const formDataToSend = new FormData();
-    const duration = `${formData.durationHours}h ${formData.durationMinutes}min ${formData.durationSeconds}sec`;
-    formDataToSend.append("subcourseName", formData.name.trim());
-    formDataToSend.append("subCourseDescription", formData.description.trim());
-    formDataToSend.append("price", cleanPrice);
-    formDataToSend.append("certificatePrice", cleanCertificatePrice);
-    formDataToSend.append("totalLessons", formData.lessons.toString());
-    formDataToSend.append("totalDuration", duration);
-    formDataToSend.append("certificateDescription", formData.certificateDescription);
-    formDataToSend.append("isUpComingCourse", formData.isUpComingCourse ? 1 : 0);
-    if (formData.introVideo) {
-      formDataToSend.append("introVideoUrl", formData.introVideo);
-    }
-
-    try {
-      console.log("📡 Sending updateSubCourse request for subCourseId:", selectedSubCourse.id);
-      const response = await updateSubCourse(selectedSubCourse.id, formDataToSend, token);
-      console.log("✅ Subcourse updated successfully:", response);
-      setIsEditModalOpen(false);
-      setFormData({
-        courseId: courseId || "",
-        name: "",
-        description: "",
-        price: "",
-        certificatePrice: "",
-        lessons: "",
-        durationHours: "00",
-        durationMinutes: "00",
-        durationSeconds: "00",
-        certificateDescription: "",
-        introVideo: null,
-        isUpComingCourse: false,
-      });
-      toast.success("Subcourse updated successfully.");
-      loadSubCourses(pagination.currentPage);
-    } catch (error) {
-      console.error("❌ Error updating subcourse:", error.response?.data, error.message);
-      setError(`Failed to update subcourse: ${error.response?.data?.message || error.message}`);
-      toast.error(`Failed to update subcourse: ${error.message}`);
-    }
-  };
+  try {
+    const response = await updateSubCourse(selectedSubCourse.id, formDataToSend, token);
+    console.log("Subcourse updated:", response);
+    setIsEditModalOpen(false);
+    setFormData({
+      courseId: courseId || "",
+      name: "",
+      description: "",
+      price: "",
+      certificatePrice: "",
+      internshipPrice: "", // NEW
+      lessons: "",
+      durationHours: "00",
+      durationMinutes: "00",
+      durationSeconds: "00",
+      certificateDescription: "",
+      introVideo: null,
+      isUpComingCourse: false,
+    });
+    toast.success("Subcourse updated successfully.");
+    loadSubCourses(pagination.currentPage);
+  } catch (error) {
+    console.error("Error updating subcourse:", error.response?.data, error.message);
+    setError(`Failed to update subcourse: ${error.response?.data?.message || error.message}`);
+    toast.error(`Failed to update subcourse: ${error.message}`);
+  }
+};
 
   const handleDeleteSubCourse = async () => {
     console.log("🗑 Attempting to delete subcourse with id:", selectedSubCourse?.id);
@@ -564,6 +591,10 @@ const SubCourses = () => {
       certificateDescription: course.certificateDescription || "",
       introVideoUrl: course.introVideoUrl,
       isUpComingCourse: course.isUpComingCourse,
+      internshipPrice: course.internshipPrice?.replace("₹", "") || "",
+     isRecordedLessonFree: course.isRecordedLessonFree || false,
+isCertificateFree: course.isCertificateFree || false,
+isInternshipLetterFree: course.isInternshipLetterFree || false,
     });
     setIsEditModalOpen(true);
   };
@@ -969,6 +1000,28 @@ const SubCourses = () => {
                   </button>
                 </div>
               </div>
+
+              <div>
+  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+    INTERNSHIP PRICE
+  </label>
+  <div className="relative">
+    <input
+      type="text"
+      name="internshipPrice"
+      value={formData.internshipPrice}
+      onChange={handleInputChange}
+      placeholder="₹800"
+      className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+    />
+    <button
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FF8800]"
+      aria-label="edit internship price"
+    >
+      <FiEdit />
+    </button>
+  </div>
+</div>
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   NO. OF LESSONS
@@ -1001,7 +1054,7 @@ const SubCourses = () => {
                     onChange={handleInputChange}
                     className="flex-1 p-2 sm:p-2.5 border-r border-orange-500 focus:outline-none text-xs sm:text-sm"
                   >
-                    {Array.from({ length: 24 }, (_, i) => i).map((hr) => (
+                    {Array.from({ length: 50 }, (_, i) => i).map((hr) => (
                       <option key={hr} value={hr.toString().padStart(2, "0")}>
                         {hr.toString().padStart(2, "0")}
                       </option>
@@ -1078,6 +1131,47 @@ const SubCourses = () => {
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
                   </label>
                 </div>
+
+<div className="space-y-4 mt-6">
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Recorded Lessons</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isRecordedLessonFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isRecordedLessonFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Certificate</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isCertificateFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isCertificateFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Internship Letter</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isInternshipLetterFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isInternshipLetterFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+</div>
               </div>
               <div className="flex justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
@@ -1211,6 +1305,28 @@ const SubCourses = () => {
                   </button>
                 </div>
               </div>
+
+              <div>
+  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+    INTERNSHIP PRICE
+  </label>
+  <div className="relative">
+    <input
+      type="text"
+      name="internshipPrice"
+      value={formData.internshipPrice}
+      onChange={handleInputChange}
+      placeholder="₹800"
+      className="w-full pr-10 px-3 py-2 sm:py-2.5 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm sm:text-base"
+    />
+    <button
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FF8800]"
+      aria-label="edit internship price"
+    >
+      <FiEdit />
+    </button>
+  </div>
+</div>
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   NO. OF LESSONS
@@ -1243,7 +1359,7 @@ const SubCourses = () => {
                     onChange={handleInputChange}
                     className="flex-1 p-2 sm:p-2.5 border-r border-orange-500 focus:outline-none text-xs sm:text-sm"
                   >
-                    {Array.from({ length: 24 }, (_, i) => i).map((hr) => (
+                    {Array.from({ length: 50 }, (_, i) => i).map((hr) => (
                       <option key={hr} value={hr.toString().padStart(2, "0")}>
                         {hr.toString().padStart(2, "0")}
                       </option>
@@ -1320,6 +1436,47 @@ const SubCourses = () => {
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
                   </label>
                 </div>
+
+  <div className="space-y-4 mt-6">
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Recorded Lessons</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isRecordedLessonFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isRecordedLessonFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Certificate</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isCertificateFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isCertificateFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+
+  <div className="flex items-center justify-between">
+    <label className="text-xs sm:text-sm font-medium text-gray-700">Free Internship Letter</label>
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input
+        type="checkbox"
+        checked={formData.isInternshipLetterFree}
+        onChange={(e) => setFormData(prev => ({ ...prev, isInternshipLetterFree: e.target.checked }))}
+        className="sr-only peer"
+      />
+      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+    </label>
+  </div>
+</div>
               </div>
               <div className="flex justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
@@ -1366,148 +1523,7 @@ const SubCourses = () => {
           </div>
         </div>
       )}
-
-      {/* Add Content Modal */}
-      {isAddContentModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/50 flex justify-center items-center z-50">
-          <div className="bg-white w-[95%] max-w-[1000px] p-6 rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-gray-800">Add Content</h3>
-              <button
-                onClick={() => setIsAddContentModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl transition"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Content Name</label>
-                    <input
-                      type="text"
-                      name="contentName"
-                      value={contentFormData.contentName}
-                      onChange={handleContentInputChange}
-                      placeholder="Typography"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea
-                      name="description"
-                      value={contentFormData.description}
-                      onChange={handleContentInputChange}
-                      placeholder="In this course you will learn how to build a space"
-                      rows="3"
-                      className="w-full px-3 py-2 border border-orange-500 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Link</label>
-                    <input
-                      type="url"
-                      name="link"
-                      value={contentFormData.link}
-                      onChange={handleContentInputChange}
-                      placeholder="https://zoom.us/j/1234?pwd=abcdghi"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="isPaid"
-                          id="free"
-                          checked={!contentFormData.isPaid}
-                          onChange={() =>
-                            setContentFormData((prev) => ({ ...prev, isPaid: false, price: "" }))
-                          }
-                          className="text-orange-500 focus:ring-orange-500"
-                        />
-                        <label htmlFor="free" className="text-sm text-gray-700">Free</label>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="isPaid"
-                          id="paid"
-                          checked={contentFormData.isPaid}
-                          onChange={() => setContentFormData((prev) => ({ ...prev, isPaid: true }))}
-                          className="text-orange-500 focus:ring-orange-500"
-                        />
-                        <label htmlFor="paid" className="text-sm text-gray-700">Paid</label>
-                      </div>
-                      {contentFormData.isPaid && (
-                        <input
-                          type="text"
-                          name="price"
-                          value={contentFormData.price}
-                          onChange={handleContentInputChange}
-                          placeholder="₹100"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
-                    <select
-                      name="contentType"
-                      value={contentFormData.contentType || ""}
-                      onChange={handleContentInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Select Content Type</option>
-                      <option value="video">Video</option>
-                      <option value="document">Document</option>
-                      <option value="quiz">Quiz</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload File</label>
-                    <input
-                      type="file"
-                      accept="video/*, application/pdf"
-                      onChange={(e) =>
-                        setContentFormData((prev) => ({
-                          ...prev,
-                          file: e.target.files[0],
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-4 mt-6">
-              <button
-                onClick={() => setIsAddContentModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddContent}
-                className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 transition"
-              >
-                Add Content
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+ </div>
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// import { logoutUser } from "../utils/logout"
 import { MdDashboard, MdEvent, MdSettings } from 'react-icons/md';
 import { FiBarChart2, FiUsers, FiInbox, FiLogOut, FiChevronDown } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -9,7 +10,7 @@ const navItems = [
   { label: 'Users', icon: <FiUsers size={22} />, path: '/users' },
   { label: 'Courses', icon: <FiInbox size={22} />, path: '/courses' },
   { label: 'Payments', icon: <FiBarChart2 size={22} />, path: '/payments' },
-  { label: 'Promo', icon: <MdEvent size={22} />, path: '/promo' },
+  { label: 'Activities', icon: <MdEvent size={22} />, path: '/promo' },
   { label: 'Notifications', icon: <FiInbox size={22} />, path: '/notifications' },
   { 
     label: 'Settings', 

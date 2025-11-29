@@ -1,297 +1,460 @@
 import React, { useEffect, useState } from "react";
-import { FaSearch, FaBell, FaPlus } from "react-icons/fa";
-import { MdDeleteOutline } from "react-icons/md";
-import profile from "../../../assets/images/Profile Picture (1).svg";
-import DatePicker from "react-datepicker"; // ✅ Import react-datepicker
-import "react-datepicker/dist/react-datepicker.css"; // ✅ Import datepicker CSS
-import { getPromos, uploadPromo, deletePromo } from "../../apis/PromoApi";
+import { FaPlus, FaBell } from "react-icons/fa";
+import { MdDeleteOutline, MdEdit } from "react-icons/md";
+import profileImg from "../../../assets/images/Profile Picture (1).svg";
+import {
+  getPromos,
+  uploadPromo,
+  deletePromo,
+  getActivities,
+  createActivity,
+  updateActivity,
+  deleteActivity,
+} from "../../apis/PromoApi";
 import { useSelector } from "react-redux";
-import { selectToken } from "../../redux/Appstore";
-import { selectProfile } from "../../redux/GlobalSlice";
-import { useNavigate } from "react-router-dom"; // ✅ Add this import
+import { selectToken, selectProfile } from "../../redux/GlobalSlice";
+import { useNavigate } from "react-router-dom";
 
-
-
-const Promo = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
+const Dashboard = () => {
   const [promos, setPromos] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [promoToDelete, setPromoToDelete] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null); // ✅ State for date picker
-  const [currentDateTime, setCurrentDateTime] = useState(new Date()); // ✅ State for dynamic date and time
-const navigate = useNavigate(); // ✅ initialize
+
+  // Promo Modal
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [promoFile, setPromoFile] = useState(null);
+
+  // Activity Modal (Add & Edit)
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState(null);
+
+  const [activityForm, setActivityForm] = useState({
+    title: "",
+    heading: "",
+    description: "",
+    link: "",
+  });
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
+
+  // Delete Modal
+  const [deleteType, setDeleteType] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const token = useSelector(selectToken);
-    const profile = useSelector(selectProfile);
-  
+  const profile = useSelector(selectProfile);
+  const navigate = useNavigate();
 
-  // Update current date and time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer); // Cleanup interval on component unmount
-  }, []);
+    if (token) {
+      fetchPromos();
+      fetchActivities();
+    }
+  }, [token]);
 
-  // 🔹 Fetch promos on mount or when selectedDate changes
   const fetchPromos = async () => {
     try {
-      console.log("🔄 Fetching promos with token:", token);
-      let data;
-      if (selectedDate) {
-        // Format date for API (e.g., YYYY-MM-DD)
-        const formattedDate = selectedDate.toIpv4String().split("T")[0];
-        console.log("🔍 Fetching promos for date:", formattedDate);
-        data = await searchPromosByDate(formattedDate, token); // Assume this API exists
-      } else {
-        data = await getPromos(token);
-      }
-      console.log("✅ Promo API response:", data);
+      const data = await getPromos(token);
       setPromos(data || []);
-    } catch (error) {
-      console.error("❌ Failed to fetch promos:", error);
+    } catch (err) {
+      console.error("Failed to fetch promos", err);
     }
   };
 
-  useEffect(() => {
-    fetchPromos();
-  }, [token, selectedDate]);
-
-  // 🔹 Handle save/upload promo
-  const handleSave = async () => {
-    if (!selectedFile) {
-      alert("Please select a file before saving.");
-      return;
+  const fetchActivities = async () => {
+    try {
+      const data = await getActivities(token);
+      setActivities(data || []);
+    } catch (err) {
+      console.error("Failed to fetch activities", err);
     }
+  };
+
+  // Promo Upload
+  const handlePromoUpload = async () => {
+    if (!promoFile) return alert("Please select an image");
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("promo", promoFile);
 
     try {
-      setLoading(true);
-      console.log("💾 Uploading promo file:", selectedFile);
-
-      const formData = new FormData();
-      formData.append("promo", selectedFile);
-
-      const result = await uploadPromo(formData, token);
-      console.log("✅ Promo uploaded successfully:", result);
-
+      await uploadPromo(formData, token);
       await fetchPromos();
-      setSelectedFile(null);
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error("❌ Error uploading promo:", error);
-      alert("Failed to upload promo. Please try again.");
+      setPromoFile(null);
+      setIsPromoModalOpen(false);
+      alert("Promo uploaded successfully!");
+    } catch (err) {
+      alert("Failed to upload promo");
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔹 Handle delete promo
-  const handleDeleteClick = (promoId) => {
-    console.log("🗑️ Delete button clicked for promo:", promoId);
-    setPromoToDelete(promoId);
+  // Open Activity Modal (Add or Edit)
+  const openActivityModal = (activity = null) => {
+    if (activity) {
+      setEditingActivity(activity);
+      setActivityForm({
+        title: activity.activityTitle || "",
+        heading: activity.activityHeading || "",
+        description: activity.activityDescription || "",
+        link: activity.activityLink || "",
+      });
+      setBannerPreview(activity.bannerUrl || null);
+      setBannerFile(null);
+    } else {
+      setEditingActivity(null);
+      setActivityForm({ title: "", heading: "", description: "", link: "" });
+      setBannerFile(null);
+      setBannerPreview(null);
+    }
+    setIsActivityModalOpen(true);
+  };
+
+  // Save or Update Activity
+  const handleSaveActivity = async () => {
+    const { title, heading, description, link } = activityForm;
+    if (!title || !heading || !description || !link) {
+      return alert("All fields are required");
+    }
+    if (!bannerFile && !editingActivity) {
+      return alert("Banner image is required");
+    }
+
+    setLoading(true);
+    const payload = {
+      activityTitle: title,
+      activityHeading: heading,
+      activityDescription: description,
+      activityLink: link,
+      ...(bannerFile && { activityImage: bannerFile }),
+    };
+
+    try {
+      if (editingActivity) {
+        await updateActivity(editingActivity._id, payload, token);
+        alert("Activity updated successfully!");
+      } else {
+        await createActivity(payload, token);
+        alert("Activity created successfully!");
+      }
+      await fetchActivities();
+      setIsActivityModalOpen(false);
+    } catch (err) {
+      alert(editingActivity ? "Update failed" : "Create failed");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openDeleteModal = (type, id) => {
+    setDeleteType(type);
+    setDeleteId(id);
     setIsDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    setLoading(true);
     try {
-      console.log("🚀 Confirming delete for promo:", promoToDelete);
-      const result = await deletePromo(promoToDelete, token);
-      console.log("✅ Promo deleted successfully:", result);
-
-      await fetchPromos();
+      if (deleteType === "promo") {
+        await deletePromo(deleteId, token);
+        await fetchPromos();
+      } else if (deleteType === "activity") {
+        await deleteActivity(deleteId, token);
+        await fetchActivities();
+      }
+      alert("Deleted successfully");
       setIsDeleteModalOpen(false);
-      setPromoToDelete(null);
-    } catch (error) {
-      console.error("❌ Error deleting promo:", error);
-      alert("Failed to delete promo. Please try again.");
+    } catch (err) {
+      alert("Delete failed");
+    } finally {
+      setLoading(false);
+      setDeleteId(null);
+      setDeleteType(null);
     }
   };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-lg font-semibold text-gray-700">Promo</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">
-            {currentDateTime.toLocaleString("en-US", {
+      <div className="flex justify-between items-center mb-8">
+        <div></div>
+        <div className="flex items-center gap-6">
+          <span className="text-sm text-gray-600">
+            {new Date().toLocaleDateString("en-US", {
               weekday: "short",
+              day: "2-digit",
+              month: "short",
+            })}{" "}
+            {new Date().toLocaleTimeString("en-US", {
               hour: "2-digit",
               minute: "2-digit",
-              second: "2-digit",
               hour12: true,
-              timeZone: "Asia/Kolkata",
             })}
           </span>
-         
-          {/* <FaBell className="text-gray-500 text-lg cursor-pointer" /> */}
-
-          <FaBell 
-  className="w-6 h-6 text-gray-500 cursor-pointer" 
-  onClick={() => navigate("/notifications")} 
-/>
-
-          <div className="w-10 h-10 rounded-full bg-gray-300 overflow-hidden">
-            <img               src={profile?.profileImageUrl || profile}
-            
-            alt="profile" />
-          </div>
+          <FaBell
+            className="text-xl text-gray-600 cursor-pointer hover:text-gray-800"
+            onClick={() => navigate("/notifications")}
+          />
+          <img
+            src={profile?.profileImageUrl || profileImg}
+            alt="Profile"
+            className="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
+          />
         </div>
       </div>
 
-      {/* Control Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-6">
-        <div className="relative flex-1 min-w-[200px]">
-          
-        </div>
-        
-      </div>
+      {/* Promo Section */}
+      <div className="mb-12">
+        <h2 className="text-lg font-semibold text-gray-700 mb-6">Promo</h2>
+        <div className="flex flex-wrap gap-6">
+          <button
+            onClick={() => setIsPromoModalOpen(true)}
+            className="w-80 h-40 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:shadow-md transition"
+          >
+            <FaPlus className="text-3xl text-orange-500 mb-2" />
+            <span className="text-gray-600 font-medium">Add Promotions</span>
+          </button>
 
-      {/* Promo cards */}
-      <div className="flex gap-6 flex-wrap">
-        {/* Add Promo Button */}
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-40 h-40 bg-white border rounded-lg flex flex-col items-center justify-center text-amber-500 hover:bg-gray-100 transition"
-        >
-          <FaPlus className="text-xl" />
-          <span className="mt-2 block text-sm">Add Promo</span>
-        </button>
-
-        {/* Dynamic promos from API */}
-        {promos.length > 0 ? (
-          promos.map((promo) => (
-            <div
-              key={promo.promoId}
-              className="w-80 h-40 bg-gray-200 rounded-lg flex items-center justify-between p-4 relative overflow-hidden"
-            >
+          {promos.map((promo) => (
+            <div key={promo.promoId} className="relative group">
               <img
-                src={promo.promoUrl}
+                src={promo.promoUrl || "https://via.placeholder.com/320x160/FFE0B2/FF6D00?text=No+Promo"}
                 alt="Promo"
-                className="absolute inset-0 w-full h-full object-cover rounded-lg"
+                className="w-80 h-40 rounded-2xl object-cover shadow-md"
+                onError={(e) => (e.target.src = "https://via.placeholder.com/320x160/FDEDED/DC2626?text=Error")}
               />
+              <div className="absolute inset-0  opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-2xl flex items-center justify-center">
+                <button
+                  onClick={() => openDeleteModal("promo", promo.promoId)}
+                  className="bg-white  p-4 rounded-full shadow-xl transform hover:scale-110 transition"
+                >
+                  <MdDeleteOutline className="text-red-600 text-2xl" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="my-10 border-gray-200" />
+
+      {/* Activities Section - Icons Always Visible */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-700 mb-6">Activities</h2>
+        <div className="flex flex-wrap gap-6">
+          {/* Add New Activity Card */}
+          <button
+            onClick={() => openActivityModal()}
+            className="w-80 h-40 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:shadow-md transition"
+          >
+            <FaPlus className="text-3xl text-orange-500 mb-2" />
+            <span className="text-gray-600 font-medium">Add New Activities</span>
+          </button>
+
+          {/* Activity Cards */}
+          {activities.map((act) => (
+            <div key={act._id} className="relative">
+              <img
+                src={
+                  act.bannerUrl ||
+                  "https://via.placeholder.com/320x160/E0E7FF/6366F1?text=No+Banner"
+                }
+                alt={act.activityHeading}
+                className="w-80 h-40 rounded-2xl object-cover shadow-md"
+                onError={(e) =>
+                  (e.target.src =
+                    "https://via.placeholder.com/320x160/FDEDED/DC2626?text=Failed")
+                }
+              />
+
+              {/* Always Visible Action Overlay */}
+              <div className="absolute inset-0 rounded-2xl flex items-center justify-center gap-8">
+                {/* Edit Button */}
+                <button
+                  onClick={() => openActivityModal(act)}
+                  className="bg-white hover:bg-blue-50 p-4 rounded-full shadow-2xl transform hover:scale-125 transition-all duration-200"
+                  title="Edit Activity"
+                >
+                  <MdEdit className="text-blue-600 text-2xl" />
+                </button>
+
+                {/* Delete Button */}
+                <button
+                  onClick={() => openDeleteModal("activity", act._id)}
+                  className="bg-white hover:bg-red-50 p-4 rounded-full shadow-2xl transform hover:scale-125 transition-all duration-200"
+                  title="Delete Activity"
+                >
+                  <MdDeleteOutline className="text-red-600 text-2xl" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Promo Upload Modal */}
+      {isPromoModalOpen && (
+        <div className="fixed inset-0  flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-6">Upload Promo Banner</h3>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPromoFile(e.target.files[0])}
+              className="w-full p-3 border border-gray-300 rounded-lg"
+            />
+            {promoFile && (
+              <img
+                src={URL.createObjectURL(promoFile)}
+                alt="Preview"
+                className="mt-4 w-full h-48 object-cover rounded-lg shadow"
+              />
+            )}
+            <div className="flex justify-end gap-4 mt-8">
               <button
-                onClick={() => handleDeleteClick(promo.promoId)}
-                className="absolute top-2 right-2 bg-white bg-opacity-50 rounded-full p-2 hover:bg-opacity-75 transition"
+                onClick={() => {
+                  setIsPromoModalOpen(false);
+                  setPromoFile(null);
+                }}
+                className="px-6 py-3 border border-gray-300 rounded-xl"
               >
-                <MdDeleteOutline className="text-yellow-400 text-2xl" />
+                Cancel
+              </button>
+              <button
+                onClick={handlePromoUpload}
+                disabled={loading || !promoFile}
+                className="px-8 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 disabled:opacity-50"
+              >
+                {loading ? "Uploading..." : "Upload"}
               </button>
             </div>
-          ))
-        ) : (
-          <p className="text-gray-500">No promos available.</p>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
-      {/* Upload Promo Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-md bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white w-[420px] p-6 rounded-lg shadow-lg relative">
-            {/* Close Button */}
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-3 right-3 text-gray-500 text-xl"
-            >
-              ✕
-            </button>
+      {/* Activity Add/Edit Modal */}
+      {isActivityModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl my-8">
+            <div className="p-8">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-bold text-gray-800">
+                  {editingActivity ? "Edit Activity" : "Add New Activity"}
+                </h2>
+                <button
+                  onClick={() => setIsActivityModalOpen(false)}
+                  className="text-4xl text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
 
-            {/* File Upload Box */}
-            <div className="border border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center h-40">
-              <input
-                type="file"
-                accept="image/*"
-                id="promoFile"
-                className="hidden"
-                onChange={(e) => {
-                  setSelectedFile(e.target.files[0]);
-                  console.log("📂 Selected file:", e.target.files[0]);
-                }}
-              />
-              <label
-                htmlFor="promoFile"
-                className="flex flex-col items-center cursor-pointer"
-              >
-                <div className="w-16 h-16 bg-gray-200 flex items-center justify-center rounded">
-                  {selectedFile ? (
-                    <img
-                      src={URL.createObjectURL(selectedFile)}
-                      alt="Preview"
-                      className="w-16 h-16 object-cover rounded"
+              <div className="grid md:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                  <input
+                    placeholder="Activity Title"
+                    value={activityForm.title}
+                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
+                    className="w-full px-5 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 outline-none text-lg"
+                  />
+                  <input
+                    placeholder="Activity Heading"
+                    value={activityForm.heading}
+                    onChange={(e) => setActivityForm({ ...activityForm, heading: e.target.value })}
+                    className="w-full px-5 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 outline-none text-lg"
+                  />
+                  <textarea
+                    placeholder="Activity Description"
+                    rows="5"
+                    value={activityForm.description}
+                    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+                    className="w-full px-5 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 outline-none text-lg resize-none"
+                  />
+                  <input
+                    placeholder="Activity Link (e.g. https://example.com)"
+                    value={activityForm.link}
+                    onChange={(e) => setActivityForm({ ...activityForm, link: e.target.value })}
+                    className="w-full px-5 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 outline-none text-lg"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-lg font-semibold text-gray-700 mb-4">Banner Image</p>
+                  <label className="block border-4 border-dashed border-gray-300 rounded-2xl h-96 cursor-pointer relative overflow-hidden bg-gray-50 hover:border-orange-400 transition-all">
+                    {bannerPreview ? (
+                      <img src={bannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                        <div className="bg-gray-300 border-4 border-dashed rounded-2xl w-24 h-24 mb-6" />
+                        <p className="text-lg font-medium">Click to upload banner</p>
+                        <p className="text-sm mt-2">Recommended: 1456 × 216 px</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setBannerFile(file);
+                          setBannerPreview(URL.createObjectURL(file));
+                        }
+                      }}
                     />
-                  ) : (
-                    <svg
-                      className="w-10 h-10 text-gray-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.414-1.414A1 1 0 0011.586 3H4zm12 4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V6h9.586a1 1 0 01.707.293l1.414 1.414a1 1 0 01.293.707z"
-                        clipRule="evenodd"
-                      />
-                      <path d="M11 7a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" />
-                    </svg>
+                  </label>
+                  {editingActivity && !bannerFile && (
+                    <p className="text-sm text-gray-500 mt-3 text-center">
+                      Leave empty to keep current banner
+                    </p>
                   )}
                 </div>
-                <div className="text-gray-400 text-sm mt-2">CHOOSE FILE</div>
-                <p className="text-xs text-gray-400 mt-1">
-                  The image dimension should be 642 × 359 px
-                </p>
-              </label>
-            </div>
+              </div>
 
-            {/* Save Button */}
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className={`mt-4 w-24 ${
-                loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600"
-              } text-white py-2 rounded-md font-semibold`}
-            >
-              {loading ? "Saving..." : "Save"}
-            </button>
+              <div className="flex justify-end gap-6 mt-10">
+                <button
+                  onClick={() => setIsActivityModalOpen(false)}
+                  className="px-10 py-4 border-2 border-gray-300 rounded-xl text-lg font-medium hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveActivity}
+                  disabled={loading}
+                  className="px-12 py-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-bold rounded-xl shadow-xl hover:from-orange-600 hover:to-yellow-600 disabled:opacity-60 transition text-lg"
+                >
+                  {loading ? "Saving..." : editingActivity ? "Update Activity" : "Create Activity"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 backdrop-blur-md bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white w-[420px] p-6 rounded-lg shadow-lg relative">
-            {/* Close Button */}
-            <button
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="absolute top-3 right-3 text-gray-500 text-xl"
-            >
-              ✕
-            </button>
-
-            {/* Delete Confirmation Content */}
-            <div className="flex flex-col items-center">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                Are you sure you want to delete this promo?
-              </h2>
-              <p className="text-sm text-gray-500 mb-6">
-                This action cannot be undone.
-              </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setIsDeleteModalOpen(false)}
-                  className="w-24 bg-gray-300 text-gray-700 py-2 rounded-md font-semibold hover:bg-gray-400 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  className="w-24 bg-red-500 text-white py-2 rounded-md font-semibold hover:bg-red-600 transition"
-                >
-                  Delete
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-md w-full text-center">
+            <h3 className="text-2xl font-bold mb-4">Delete Item?</h3>
+            <p className="text-gray-600 mb-10">This action cannot be undone.</p>
+            <div className="flex justify-center gap-6">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-10 py-4 border-2 border-gray-300 rounded-xl text-lg font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={loading}
+                className="px-12 py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-60"
+              >
+                {loading ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
         </div>
@@ -300,4 +463,4 @@ const navigate = useNavigate(); // ✅ initialize
   );
 };
 
-export default Promo;
+export default Dashboard;
